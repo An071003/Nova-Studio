@@ -15,17 +15,17 @@ env:
   DATABASE_URL: postgresql://nova:nova@127.0.0.1:5432/nova
   REDIS_URL: redis://127.0.0.1:6379
   S3_ENDPOINT: http://127.0.0.1:9000
-  S3_PUBLIC_ENDPOINT: http://127.0.0.1:9000
+  S3_PUBLIC_ENDPOINT: http://localhost:9000
   S3_REGION: us-east-1
   S3_BUCKET: nova-assets
   S3_ACCESS_KEY: minio
   S3_SECRET_KEY: minio12345
   S3_FORCE_PATH_STYLE: "true"
   WEB_URL: http://localhost:3000
-  API_URL: http://127.0.0.1:4000
-  NEXT_PUBLIC_API_URL: http://127.0.0.1:4000/api/v1
-  REALTIME_URL: ws://127.0.0.1:4001
-  NEXT_PUBLIC_REALTIME_URL: ws://127.0.0.1:4001
+  API_URL: http://localhost:4000
+  NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+  REALTIME_URL: ws://localhost:4001
+  NEXT_PUBLIC_REALTIME_URL: ws://localhost:4001
   JWT_ACCESS_SECRET: dev-access-secret-change-in-production-32chars
   JWT_REFRESH_SECRET: dev-refresh-secret-change-in-production-32chars
   REALTIME_JWT_SECRET: dev-realtime-secret-change-in-production-32chars
