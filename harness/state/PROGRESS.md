@@ -7,7 +7,7 @@
 - M2 — Production: NOT_STARTED
 
 ## Current task
-- ID: (none) · Status: IDLE · Next: P1-T08
+- ID: (none) · Status: IDLE · Next: P1-T09
 
 ## Blockers
 _(không có)_
@@ -22,7 +22,7 @@ _(không có)_
 | P1-T05 | DONE | 2026-11-14 | PROBE PASS: 6 step(s) (unit 4/4 + e2e 5/5: register/login/refresh/reuse/logout/me/429) |
 | P1-T06 | DONE | 2026-11-14 | `probe -Scope api` PASS 6/6 (unit 9/9, e2e 7/7 incl. role matrix + Yjs init doc + cursor + duplicate + soft-delete AuditLog) |
 | P1-T07 | DONE | 2026-11-14 | `probe -Scope editor-core` PASS 5/5 (13/13 tests incl. all 7 conflicts + 200-op 3-peer convergence; 88.94% stmts/lines coverage) |
-| P1-T08 | TODO | | |
+| P1-T08 | DONE | 2026-11-14 | `probe -Scope editor-core` PASS 5/5 (21/21 tests incl. 2-peer UndoManager + remoteNodeDeleted + tools FSM; 90.24% stmts/lines coverage) |
 | P1-T09 | TODO | | |
 | P1-T10 | TODO | | |
 | P1-T11 | TODO | | |
@@ -55,3 +55,4 @@ Status hợp lệ: `TODO | IN_PROGRESS | BLOCKED | REVIEW | DONE`.
 | 2026-11-14 | P1-T05 | 0 CONTRAST rounds: Auth + refresh token reuse family revocation + throttler e2e PASS first run. |
 | 2026-11-14 | P1-T06 | 1 CONTRAST round: Fixed Prisma `Uint8Array<ArrayBuffer>` type (`Uint8Array.from(...)`) and ordered `OWNER` last in role-matrix e2e so `DELETE` does not soft-delete before `EDITOR`/`VIEWER` checks. `probe -Scope api` PASS 6/6. |
 | 2026-11-14 | P1-T07 | 1 CONTRAST round: Switched `@nova/editor-core` and `@nova/editor-konva` to ESM-only builds (`fractional-indexing@4`/`nanoid@6`/`rbush@4` are pure ESM), added fallback in `generateJitteredKeyBetween`, and set 30s timeout on slow V8-instrumented ESLint boundary tests. |
+| 2026-11-14 | P1-T08 | 3 CONTRAST rounds: Removed `zod` import in `clipboard.ts` (use `@nova/shared` schema), eliminated extra empty tx in `initializeDocIfEmpty`, and added `executeDiscrete` `stopCapturing()` around discrete tool gestures so `Delete -> Undo` isolates cleanly from coalesced edits. `probe -Scope editor-core` PASS 5/5 (21/21 tests, 90.24% coverage). |

@@ -75,8 +75,17 @@ export function getDocRoots(doc: Y.Doc): DocRoots {
 
 /** Initializes `meta` and default `page:main` if absent on a newly created Y.Doc. */
 export function initializeDocIfEmpty(doc: Y.Doc, opts?: { title?: string }): void {
+  const { meta, pages } = getDocRoots(doc);
+  if (
+    meta.has('schemaVersion') &&
+    meta.has('createdAt') &&
+    (opts?.title === undefined || meta.has('title')) &&
+    pages.has(DEFAULT_PAGE_ID)
+  ) {
+    return;
+  }
+
   doc.transact(() => {
-    const { meta, pages } = getDocRoots(doc);
     if (!meta.has('schemaVersion')) {
       meta.set('schemaVersion', DOC_SCHEMA_VERSION);
     }
