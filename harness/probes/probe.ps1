@@ -49,7 +49,7 @@ switch ($Scope) {
   'security'    { Base; Step 'pnpm audit' { pnpm audit --prod --audit-level high }; Step 'gitleaks' { gitleaks detect --no-banner } }
   'perf'        { Step 'bench editor-core' { pnpm --filter @nova/editor-core bench }; Step 'eval E12' { pnpm --filter web e2e:evals --grep E12 } }
   'deploy'      { Step 'prod compose' { docker compose -f infra/docker-compose.prod.yml up -d --build --wait }; Step 'health' { curl.exe -fsS http://localhost/api/v1/health } }
-  'gate-m1'     { Base; Step 'test (all)' { pnpm test }; Step 'evals E1-E5' { pnpm --filter web e2e:evals --grep "E[1-5]\b" } }
+  'gate-m1'     { Base; Step 'test (all)' { pnpm test }; Step 'evals E1-E5' { pnpm --filter web e2e:evals --grep "E[1-5]:" } }
   'gate-m2'     { Base; Step 'test (all)' { pnpm test }; Step 'evals all' { pnpm --filter web e2e:evals }; Step 'audit' { pnpm audit --prod --audit-level high } }
   default       { Write-Host "Unknown scope: $Scope"; exit 2 }
 }

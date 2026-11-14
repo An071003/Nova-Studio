@@ -22,7 +22,7 @@ case "$SCOPE" in
   security) base; step audit pnpm audit --prod --audit-level high; step gitleaks gitleaks detect --no-banner ;;
   perf) step bench pnpm --filter @nova/editor-core bench; step E12 pnpm --filter web e2e:evals --grep E12 ;;
   deploy) step prod docker compose -f infra/docker-compose.prod.yml up -d --build --wait; step health curl -fsS http://localhost/api/v1/health ;;
-  gate-m1) base; step test pnpm test; step evals pnpm --filter web e2e:evals --grep "E[1-5]\b" ;;
+  gate-m1) base; step test pnpm test; step evals pnpm --filter web e2e:evals --grep "E[1-5]:" ;;
   gate-m2) base; step test pnpm test; step evals pnpm --filter web e2e:evals; step audit pnpm audit --prod --audit-level high ;;
   *) echo "Unknown scope: $SCOPE"; exit 2 ;;
 esac
