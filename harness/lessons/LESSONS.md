@@ -1,0 +1,40 @@
+# LESSONS — Improvement library (Harness² "harnessing-level learning")
+
+Chỉ ghi bài học **tổng quát hoá được** và **có bằng chứng**. Đọc theo tag module ở bước LOAD.
+Lesson `confidence: high` được dùng ≥ 3 lần → skill `nova-harness-evolve` promote thành rule/probe check.
+
+## Template
+```
+### L-NNN <tiêu đề ngắn>  #<module> #<topic>
+- Date / Task: 2026-11-14 / P1-T07
+- Symptom: <lỗi quan sát được, trích log>
+- Root cause: ...
+- Fix / Pattern: ... (snippet ngắn nếu cần)
+- Evidence: <probe trước FAIL → sau PASS>
+- Confidence: low | medium | high · Uses: 0
+```
+
+## Seed lessons (kiến thức nền, confidence medium — cần xác nhận trong dự án)
+
+### L-001 Y.Text phải gắn vào doc trước khi đọc  #editor-core #yjs
+- Symptom: `Invalid access: Add Yjs type to a document before reading data.`
+- Fix: tạo `new Y.Text()`, `nodeMap.set('text', ytext)` bên trong transact, sau đó mới `insert`.
+- Confidence: medium · Uses: 0
+
+### L-002 UndoManager cần trackedOrigins  #editor-core #history
+- Symptom: Undo hoàn tác cả thay đổi của người khác hoặc không làm gì.
+- Fix: `new Y.UndoManager(nodes, { trackedOrigins: new Set([LOCAL_ORIGIN]), captureTimeout: 500 })`; mọi command transact với `LOCAL_ORIGIN`.
+- Confidence: medium · Uses: 0
+
+### L-003 Playwright multiplayer flaky do chờ sai điều kiện  #web #e2e
+- Fix: chờ `connection-status[data-state=connected]` và `expect.poll(scene)`; không dùng `waitForTimeout`.
+- Confidence: medium · Uses: 0
+
+### L-004 Konva re-render chậm khi đi qua React state  #editor-konva #perf
+- Fix: cập nhật node Konva trực tiếp từ `SceneDiff` (`shape.setAttrs`, `layer.batchDraw()`); React chỉ dựng khung.
+- Confidence: medium · Uses: 0
+
+### L-005 MinIO presigned URL sai host trong Docker  #api #infra
+- Symptom: Browser nhận URL `http://minio:9000/...` không truy cập được.
+- Fix: dùng `S3_PUBLIC_ENDPOINT` riêng để ký URL cho browser; endpoint nội bộ cho server.
+- Confidence: medium · Uses: 0
