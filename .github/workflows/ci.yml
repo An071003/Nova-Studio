@@ -61,14 +61,6 @@ jobs:
           --health-timeout=3s
           --health-retries=15
 
-      minio:
-        image: pgsty/silo:latest
-        env:
-          MINIO_ROOT_USER: minio
-          MINIO_ROOT_PASSWORD: minio12345
-        ports:
-          - 9000:9000
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -89,20 +81,26 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Ensure MinIO bucket exists
+      - name: Start S3 (MinIO/Silo) and create bucket
         run: |
-          for i in $(seq 1 20); do
+          docker run -d --name nova-ci-minio -p 9000:9000 \
+            -e MINIO_ROOT_USER="$S3_ACCESS_KEY" \
+            -e MINIO_ROOT_PASSWORD="$S3_SECRET_KEY" \
+            pgsty/silo:latest server /data --console-address ":9001"
+          for i in $(seq 1 30); do
             if curl -sf http://127.0.0.1:9000/minio/health/live >/dev/null; then
               break
             fi
             sleep 1
           done
-          printf 'user = "%s:%s"\n' "$S3_ACCESS_KEY" "$S3_SECRET_KEY" | curl -s -o /dev/null -X PUT --aws-sigv4 'aws:amz:us-east-1:s3' -K - http://127.0.0.1:9000/$S3_BUCKET
+          curl -sf http://127.0.0.1:9000/minio/health/live >/dev/null
+          printf 'user = "%s:%s"\n' "$S3_ACCESS_KEY" "$S3_SECRET_KEY" | curl -fsS -o /dev/null -X PUT --aws-sigv4 'aws:amz:us-east-1:s3' -K - "http://127.0.0.1:9000/$S3_BUCKET"
 
-      - name: Prisma generate & migrate
+      - name: Prisma generate, migrate, and seed
         run: |
           pnpm --filter api exec prisma generate
           pnpm --filter api exec prisma migrate deploy
+          pnpm db:seed
 
       - name: Lint & Typecheck
         run: |
@@ -116,18 +114,28 @@ jobs:
         run: pnpm --filter api test:e2e
 
       - name: Build all apps & packages
+        env:
+          NODE_ENV: production
         run: pnpm build
 
       - name: Install Playwright Chromium
         run: pnpm --filter web exec playwright install chromium --with-deps
 
       - name: Run Web Playwright smoke suite
+        env:
+          NODE_ENV: development
         run: pnpm --filter web e2e
 
       - name: Audit production dependencies
         run: pnpm audit --prod --audit-level high
 
-      - name: Secret scan
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Secret scan (gitleaks)
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            | tar -xz -C "$HOME/.local/bin" gitleaks
+          "$HOME/.local/bin/gitleaks" detect --no-banner
+
+      - name: Stop CI MinIO container
+        if: always()
+        run: docker rm -f nova-ci-minio >/dev/null 2>&1 || true
