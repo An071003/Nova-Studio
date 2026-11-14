@@ -6,7 +6,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "noEmit": true,
-    "rootDir": "src"
+    "rootDir": "."
   },
-  "include": ["src"]
+  "include": ["src", "test", "prisma/seed.ts"]
 }

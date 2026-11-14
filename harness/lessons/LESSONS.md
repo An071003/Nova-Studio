@@ -53,3 +53,10 @@ Lesson `confidence: high` được dùng ≥ 3 lần → skill `nova-harness-evo
 - Fix / Pattern: Start Docker Desktop via `Start-Process "...\Docker Desktop.exe" -Wait` with `IsDaemon: true`. Use `pgsty/silo:latest` with inline `curl --aws-sigv4` bucket init + `HEAD` check in `minio` healthcheck.
 - Evidence: `probe.ps1 -Scope infra` trước FAIL → sau PASS (`nova-postgres`, `nova-redis`, `nova-minio`, `nova-mailpit` Healthy).
 - Confidence: high · Uses: 1
+
+### L-008 NestJS DI trong Vitest cần `@Inject(...)` tường minh  #api #testing
+- Date / Task: 2026-11-14 / P1-T04
+- Symptom: Vitest (esbuild) không emit `design:paramtypes` cho constructor injection nên NestJS không resolve dependency nếu thiếu `@Inject`.
+- Fix / Pattern: Luôn gắn `@Inject(DependencyClass)` trên mọi tham số constructor trong NestJS controller/service/guard.
+- Evidence: `test/health.e2e-spec.ts` 2/2 PASS dưới Vitest không cần `unplugin-swc`.
+- Confidence: high · Uses: 1
