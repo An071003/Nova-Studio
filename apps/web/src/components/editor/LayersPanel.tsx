@@ -9,6 +9,7 @@ import {
   EyeOff,
   Folder,
   Frame,
+  GripVertical,
   Image as ImageIcon,
   Lock,
   Minus,
@@ -32,6 +33,7 @@ export interface LayersPanelProps {
   onToggleVisible: (node: CanvasNode) => void;
   onToggleLocked: (node: CanvasNode) => void;
   onReorderNode: (nodeId: string, direction: 'forward' | 'backward') => void;
+  onDragReorderNode?: (draggedId: string, targetId: string, position: 'above' | 'below') => void;
   onUploadAssetFile?: (file: File) => void;
   onInsertAsset?: (asset: AssetDto) => void;
 }
@@ -70,12 +72,17 @@ export function LayersPanel({
   onToggleVisible,
   onToggleLocked,
   onReorderNode,
+  onDragReorderNode,
   onUploadAssetFile,
   onInsertAsset,
 }: LayersPanelProps) {
   const [activeTab, setActiveTab] = useState<SidebarTab>('layers');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
+  const [dragOverTarget, setDragOverTarget] = useState<{
+    id: string;
+    position: 'above' | 'below';
+  } | null>(null);
   const [isDropzoneHover, setIsDropzoneHover] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -151,19 +158,72 @@ export function LayersPanel({
               const isSelected = selectedSet.has(node.id);
               const isRenaming = renamingId === node.id;
 
+              const dropPosition =
+                dragOverTarget?.id === node.id ? dragOverTarget.position : null;
+
               return (
                 <li
                   key={node.id}
                   data-testid={`layer-row-${node.id}`}
+                  draggable={!readOnly && renamingId !== node.id}
+                  onDragStart={(e) => {
+                    if (readOnly || renamingId === node.id) return;
+                    e.dataTransfer.setData('application/x-nova-layer', node.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onDragOver={(e) => {
+                    if (readOnly) return;
+                    if (!e.dataTransfer.types.includes('application/x-nova-layer')) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const position: 'above' | 'below' =
+                      e.clientY < rect.top + rect.height / 2 ? 'above' : 'below';
+                    setDragOverTarget((prev) =>
+                      prev?.id === node.id && prev.position === position
+                        ? prev
+                        : { id: node.id, position },
+                    );
+                  }}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                      setDragOverTarget((prev) => (prev?.id === node.id ? null : prev));
+                    }
+                  }}
+                  onDrop={(e) => {
+                    const draggedId = e.dataTransfer.getData('application/x-nova-layer');
+                    if (!draggedId) return;
+                    e.preventDefault();
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const position: 'above' | 'below' =
+                      e.clientY < rect.top + rect.height / 2 ? 'above' : 'below';
+                    setDragOverTarget(null);
+                    if (draggedId !== node.id) {
+                      onDragReorderNode?.(draggedId, node.id, position);
+                    }
+                  }}
+                  onDragEnd={() => setDragOverTarget(null)}
                   className={cn(
-                    'group flex items-center gap-1.5 h-8 px-2 rounded-[var(--radius-control)] text-[12px] transition-colors',
+                    'group flex items-center gap-1.5 h-8 px-2 rounded-[var(--radius-control)] text-[12px] transition-colors border-y-2 border-transparent',
                     node.parentId ? 'pl-5' : '',
                     isSelected
                       ? 'bg-[var(--accent)]/15 text-[var(--text-primary)] ring-1 ring-inset ring-[var(--accent)]/50'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]',
                     !node.visible ? 'opacity-50' : '',
+                    dropPosition === 'above' ? 'border-t-[var(--accent)]' : '',
+                    dropPosition === 'below' ? 'border-b-[var(--accent)]' : '',
                   )}
                 >
+                  {!readOnly ? (
+                    <span
+                      data-testid={`layer-drag-handle-${node.id}`}
+                      aria-hidden="true"
+                      title="Drag to reorder layer"
+                      className="text-[var(--text-secondary)] opacity-45 group-hover:opacity-100 cursor-grab active:cursor-grabbing shrink-0"
+                    >
+                      <GripVertical className="w-3 h-3" />
+                    </span>
+                  ) : null}
                   <NodeTypeIcon type={node.type} />
 
                   {isRenaming ? (

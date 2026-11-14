@@ -142,4 +142,187 @@ test.describe('P1-T13 Collaborative Canvas Editor', () => {
     expect(savedPath).not.toBeNull();
     expect(fs.statSync(savedPath!).size).toBeGreaterThan(200);
   });
+
+  test('P1-T16: drag-drop layer reorder, rename/hide/lock, full properties, align/distribute, group, clipboard & shortcuts', async ({
+    page,
+  }) => {
+    const unique = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    const email = `t16-${unique}@nova.dev`;
+    const password = 'NovaStudio2026!';
+
+    await page.goto('/register');
+    await page.getByLabel('Full name').fill('Studio Designer');
+    await page.getByLabel('Email').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await page.getByRole('button', { name: 'Create account' }).click();
+    await page.waitForURL('**/dashboard');
+
+    await page.getByRole('button', { name: 'Create workspace' }).click();
+    const wsDialog = page.getByRole('dialog', { name: 'New workspace' });
+    await wsDialog.getByLabel('Workspace name').fill('T16 Studio');
+    await wsDialog.getByRole('button', { name: 'Create' }).click();
+    await expect(page.getByRole('heading', { name: 'T16 Studio' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'New design' }).click();
+    const designDialog = page.getByRole('dialog', { name: 'New design' });
+    await designDialog.getByLabel('Design name').fill('Inspector Ops');
+    await designDialog.getByRole('button', { name: 'Create design' }).click();
+    await page.getByRole('link', { name: 'Inspector Ops' }).click();
+    await page.waitForURL('**/project/**');
+
+    await page.waitForFunction(() => Boolean(window.__NOVA_EDITOR__?.renderer));
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-state', 'connected');
+
+    // Create 3 rectangles + 1 text node via commands for deterministic geometry
+    const ids = await page.evaluate(() => {
+      const ed = window.__NOVA_EDITOR__!.editor;
+      const r1 = ed.commands.execute({
+        type: 'createNode',
+        input: { type: 'rect', name: 'Box Alpha', x: 60, y: 120, width: 80, height: 80 },
+      }).createdIds[0]!;
+      const r2 = ed.commands.execute({
+        type: 'createNode',
+        input: { type: 'rect', name: 'Box Beta', x: 220, y: 160, width: 80, height: 80 },
+      }).createdIds[0]!;
+      const r3 = ed.commands.execute({
+        type: 'createNode',
+        input: { type: 'rect', name: 'Box Gamma', x: 420, y: 200, width: 80, height: 80 },
+      }).createdIds[0]!;
+      const t1 = ed.commands.execute({
+        type: 'createNode',
+        input: { type: 'text', name: 'Headline', x: 60, y: 40, width: 220, height: 48, text: 'Hello' },
+      }).createdIds[0]!;
+      return { r1, r2, r3, t1 };
+    });
+
+    await expect(page.getByRole('tab', { name: 'Layers (4)' })).toBeVisible();
+
+    // 1. Rename, hide, lock on Box Alpha
+    await page.getByRole('button', { name: 'Box Alpha', exact: true }).dblclick();
+    const renameInput = page.getByLabel('Rename Box Alpha');
+    await renameInput.fill('Card Primary');
+    await renameInput.press('Enter');
+    await expect(page.getByRole('button', { name: 'Card Primary', exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Hide Card Primary' }).click();
+    await page.getByRole('button', { name: 'Show Card Primary' }).click();
+    await page.getByRole('button', { name: 'Lock Card Primary' }).click();
+    const isLocked = await page.evaluate(
+      (id) => window.__NOVA_EDITOR__?.editor.scene.getNode(id)?.locked,
+      ids.r1,
+    );
+    expect(isLocked).toBe(true);
+    await page.getByRole('button', { name: 'Unlock Card Primary' }).click();
+
+    // 2. Drag-drop layer reorder (drag Card Primary above Headline -> top visual row)
+    const beforeOrder = await page.evaluate(() =>
+      window.__NOVA_EDITOR__!.editor.scene.getAllNodes().map((n) => n.name),
+    );
+    expect(beforeOrder).toEqual(['Card Primary', 'Box Beta', 'Box Gamma', 'Headline']);
+
+    const sourceHandle = page.getByTestId(`layer-drag-handle-${ids.r1}`);
+    const targetRow = page.getByTestId(`layer-row-${ids.t1}`);
+    await sourceHandle.dragTo(targetRow, { targetPosition: { x: 40, y: 4 } });
+
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          window.__NOVA_EDITOR__!.editor.scene.getAllNodes().map((n) => n.name),
+        ),
+      )
+      .toEqual(['Box Beta', 'Box Gamma', 'Headline', 'Card Primary']);
+
+    // Also test arrow reorder button (Move Card Primary backward -> down 1 visual slot)
+    await page.getByRole('button', { name: 'Move Card Primary backward' }).click();
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          window.__NOVA_EDITOR__!.editor.scene.getAllNodes().map((n) => n.name),
+        ),
+      )
+      .toEqual(['Box Beta', 'Box Gamma', 'Card Primary', 'Headline']);
+
+    // 3. Full Properties on Card Primary & Headline
+    await page.getByRole('button', { name: 'Card Primary', exact: true }).click();
+    await page.getByLabel('Corner radius').fill('16');
+    await page.getByLabel('Corner radius').press('Enter');
+    await page.getByLabel('Rotation').fill('15');
+    await page.getByLabel('Rotation').press('Enter');
+    await page.getByLabel('Opacity').fill('80');
+    await page.getByLabel('Opacity').press('Enter');
+
+    const updatedRect = await page.evaluate((id) => {
+      const n = window.__NOVA_EDITOR__?.editor.scene.getNode(id);
+      return { cornerRadius: n?.cornerRadius, rotation: n?.rotation, opacity: n?.opacity };
+    }, ids.r1);
+    expect(updatedRect).toEqual({ cornerRadius: 16, rotation: 15, opacity: 0.8 });
+
+    await page.getByRole('button', { name: 'Headline', exact: true }).click();
+    await page.getByLabel('Font', { exact: true }).selectOption('Space Grotesk');
+    await page.getByLabel('Weight', { exact: true }).selectOption('700');
+    await page.getByRole('button', { name: 'center', exact: true }).click();
+    const updatedText = await page.evaluate((id) => {
+      const n = window.__NOVA_EDITOR__?.editor.scene.getNode(id);
+      return { fontFamily: n?.fontFamily, fontWeight: n?.fontWeight, align: n?.align };
+    }, ids.t1);
+    expect(updatedText).toEqual({ fontFamily: 'Space Grotesk', fontWeight: 700, align: 'center' });
+
+    // 4. Multi-select Shift+Click -> Align top + Distribute horizontally + Group + Ungroup
+    await page.getByRole('button', { name: 'Card Primary', exact: true }).click();
+    await page.getByRole('button', { name: 'Box Beta', exact: true }).click({ modifiers: ['Shift'] });
+    await page.getByRole('button', { name: 'Box Gamma', exact: true }).click({ modifiers: ['Shift'] });
+
+    await page.getByRole('button', { name: 'Align top' }).click();
+    await page.getByRole('button', { name: 'Distribute horizontally' }).click();
+    const aligned = await page.evaluate(
+      (arr) => arr.map((id) => window.__NOVA_EDITOR__?.editor.scene.getNode(id)?.y),
+      [ids.r1, ids.r2, ids.r3],
+    );
+    expect(new Set(aligned).size).toBe(1);
+
+    await page.getByRole('button', { name: 'Group selection' }).click();
+    await expect
+      .poll(async () =>
+        page.evaluate(
+          () => window.__NOVA_EDITOR__!.editor.scene.getAllNodes().filter((n) => n.type === 'group').length,
+        ),
+      )
+      .toBe(1);
+
+    await page.getByRole('button', { name: 'Ungroup' }).click();
+    await expect
+      .poll(async () =>
+        page.evaluate(
+          () => window.__NOVA_EDITOR__!.editor.scene.getAllNodes().filter((n) => n.type === 'group').length,
+        ),
+      )
+      .toBe(0);
+
+    // 5. Keyboard shortcuts & clipboard (Ctrl+D duplicate, Ctrl+C/V copy-paste, Ctrl+Z undo, tool hotkeys)
+    await page.getByRole('button', { name: 'Headline', exact: true }).click();
+    await page.getByTestId('canvas-stage').click({ position: { x: 1, y: 1 } });
+    // Re-select via API then verify keyboard shortcuts drive ToolManager cleanly
+    await page.evaluate((id) => window.__NOVA_EDITOR__?.editor.selection.set([id]), ids.r1);
+
+    await page.keyboard.press('Control+d');
+    await expect(page.getByRole('tab', { name: 'Layers (5)' })).toBeVisible();
+
+    await page.keyboard.press('Control+c');
+    await page.keyboard.press('Control+v');
+    await expect(page.getByRole('tab', { name: 'Layers (6)' })).toBeVisible();
+
+    await page.keyboard.press('Control+z');
+    await expect(page.getByRole('tab', { name: 'Layers (5)' })).toBeVisible();
+
+    await page.keyboard.press('r');
+    const activeToolAfterR = await page.evaluate(() =>
+      window.__NOVA_EDITOR__?.editor.tools.getActiveTool(),
+    );
+    expect(activeToolAfterR).toBe('rect');
+    await page.keyboard.press('v');
+    const activeToolAfterV = await page.evaluate(() =>
+      window.__NOVA_EDITOR__?.editor.tools.getActiveTool(),
+    );
+    expect(activeToolAfterV).toBe('select');
+  });
 });

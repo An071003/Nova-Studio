@@ -393,7 +393,7 @@ export function PropertiesPanel({
               />
             </div>
 
-            {primary.type === 'rect' || primary.type === 'frame' ? (
+            {primary.type === 'rect' || primary.type === 'frame' || primary.type === 'image' ? (
               <NumericField
                 label="Corner radius"
                 value={primary.cornerRadius ?? 0}
@@ -567,6 +567,48 @@ export function PropertiesPanel({
                 onChange={(e) => onSetText(primary.id, e.target.value)}
                 className="w-full p-2 rounded-[var(--radius-control)] bg-[var(--bg-app)] border border-[var(--border)] text-[13px] text-[var(--text-primary)] resize-y disabled:opacity-50"
               />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-1">
+                  <label
+                    htmlFor="font-family-select"
+                    className="text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider"
+                  >
+                    Font
+                  </label>
+                  <select
+                    id="font-family-select"
+                    disabled={readOnly}
+                    value={primary.fontFamily ?? 'Inter'}
+                    onChange={(e) => patchSelection({ fontFamily: e.target.value })}
+                    className="h-8 px-2 rounded-[var(--radius-control)] bg-[var(--bg-app)] border border-[var(--border)] text-[12px] text-[var(--text-primary)] disabled:opacity-50"
+                  >
+                    <option value="Inter">Inter</option>
+                    <option value="Space Grotesk">Space Grotesk</option>
+                    <option value="JetBrains Mono">JetBrains Mono</option>
+                    <option value="Georgia">Georgia</option>
+                    <option value="system-ui">System UI</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label
+                    htmlFor="font-weight-select"
+                    className="text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider"
+                  >
+                    Weight
+                  </label>
+                  <select
+                    id="font-weight-select"
+                    disabled={readOnly}
+                    value={String(primary.fontWeight ?? 400)}
+                    onChange={(e) => patchSelection({ fontWeight: Number(e.target.value) })}
+                    className="h-8 px-2 rounded-[var(--radius-control)] bg-[var(--bg-app)] border border-[var(--border)] text-[12px] text-[var(--text-primary)] disabled:opacity-50"
+                  >
+                    <option value="400">Regular (400)</option>
+                    <option value="600">SemiBold (600)</option>
+                    <option value="700">Bold (700)</option>
+                  </select>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <NumericField
                   label="Font size"

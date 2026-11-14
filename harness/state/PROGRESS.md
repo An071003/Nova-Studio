@@ -7,10 +7,10 @@
 - M2 — Production: NOT_STARTED
 
 ## Current task
-- ID: P1-T15 · Status: DONE · Completed: 2026-11-14
-- Goal: Implement Assets presigned upload, server confirm + `sharp`/SVG magic-byte verification & thumbnail generation (`apps/api` + `apps/worker` BullMQ), Web Assets panel + canvas drag-and-drop upload (`apps/web`), and Eval E5 (`2MB PNG` sync + `30MB` reject).
-- Evidence: `packages/shared` PASS (`11/11` tests); `apps/worker` PASS (`4/4` tests); `probe.ps1 -Scope api` PASS (`6/6`, API unit `9/9`, API E2E `5/5` files / `9/9` tests incl. `assets.e2e-spec.ts`); `probe.ps1 -Scope e2e` PASS (`5/5`, Playwright `5 passed (48.4s)` incl. `E5` in `7.0s` + `E5.png`); `web build` PASS (`7/7` routes).
-- Next: P1-T16 (Layers panel drag-drop reorder, full Properties, Align/Distribute, Group/Ungroup, Clipboard & Keyboard Shortcuts).
+- ID: P1-T16 · Status: DONE · Completed: 2026-11-14
+- Goal: Implement drag-and-drop layer reordering in `LayersPanel`, fix/verify reorder command IDs, and verify Properties, Align/Distribute, Group/Ungroup, Clipboard Copy/Paste/Duplicate, and keyboard shortcuts via Playwright in `apps/web/e2e/smoke/editor.spec.ts`.
+- Evidence: `pnpm --filter web build` PASS (`7/7` routes); `pwsh -NoProfile -File harness/probes/probe.ps1 -Scope web` PASS (`6/6` steps: lint, typecheck, guards, web unit `3/3`, Playwright smoke `4 passed (51.7s)` incl. P1-T16 `7.0s`).
+- Next: M1-GATE (`pwsh -NoProfile -File harness/probes/probe.ps1 -Scope gate-m1`).
 
 ## Blockers
 _(không có)_
@@ -33,7 +33,7 @@ _(không có)_
 | P1-T13 | DONE | 2026-11-14 | `probe -Scope web` PASS 6/6 (`editor-konva` 3/3 incl. 500-node <16.6ms bench, `web` unit 3/3, `next build` ok, Playwright `auth+dashboard+editor` 3/3 + PNG export + screenshot) |
 | P1-T14 | DONE | 2026-11-14 | `probe -Scope e2e` PASS 5/5 (`E1–E4` `4 passed (46.0s)`); `api test:e2e` PASS `8/8`; `web e2e` smoke PASS `3/3 (37.1s)` |
 | P1-T15 | DONE | 2026-11-14 | `shared` `11/11`; `worker` `4/4`; `probe -Scope api` PASS 6/6 (`assets.e2e-spec.ts`); `probe -Scope e2e` PASS 5/5 (`E1–E5` `5 passed (48.4s)` + `E5.png`) |
-| P1-T16 | TODO | | |
+| P1-T16 | DONE | 2026-11-14 | `web build` PASS (`7/7`); `probe -Scope web` PASS 6/6 (`4 passed (51.7s)` incl. P1-T16 drag-drop reorder, rename/hide/lock, full properties, align/distribute, group, clipboard & shortcuts) |
 | M1-GATE | TODO | | |
 | P1-T17 | TODO | | |
 | P1-T18 | TODO | | |
@@ -66,3 +66,4 @@ Status hợp lệ: `TODO | IN_PROGRESS | BLOCKED | REVIEW | DONE`.
 | 2026-11-14 | P1-T13 | 1 CONTRAST round: Fixed Konva `Bundler` tsconfig & `/^konva$/ -> konva/lib/index.js` Vitest alias (L-010) and `fontStyle` bold normalization in `konva-shapes.ts`; built `@nova/editor-konva` (`3/3` tests incl. 500-node `<16.6ms`/frame bench) + 5-region `/project/[id]` studio editor + Playwright `editor.spec.ts` (`3/3` E2E, PNG export, screenshot verified). |
 | 2026-11-14 | P1-T14 | 1 CONTRAST round: Fixed `HocuspocusProviderWebsocket` `minDelay <= delay` & `provider.attach()` (L-009) and configurable `NOVA_E2E_THROTTLE_LIMIT` for multi-user E2E runs; implemented `y-indexeddb` + Hocuspocus client, 30Hz awareness cursors/selections, TopBar collaborators, `StatusBar`, and Eval E1–E4 (`probe -Scope e2e` PASS 5/5). |
 | 2026-11-14 | P1-T15 | 1 CONTRAST round: Updated Eval E5 pixel verification to scan across all Konva `<canvas>` layers (grid layer sits below scene layer); implemented shared `sanitizeSvgMarkup`, `worker` sharp dimension + WebP thumbnail processor, NestJS `AssetsModule`, Web Assets panel & drag-drop upload, and Eval E5 (`probe -Scope api` PASS 6/6, `probe -Scope e2e` PASS 5/5). |
+| 2026-11-14 | P1-T16 | 0 CONTRAST rounds: Added HTML5 drag-drop layer reordering with `GripVertical` handle, added `image` corner radius + Typography Font family/weight selectors in `PropertiesPanel`, and verified reorder, rename, hide, lock, properties, align/distribute, group/ungroup, clipboard, and keyboard shortcuts (`probe -Scope web` PASS 6/6). |

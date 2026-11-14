@@ -404,6 +404,35 @@ export default function ProjectEditorPage({
     }
   };
 
+  const handleDragReorderNode = (
+    draggedId: string,
+    targetId: string,
+    position: 'above' | 'below',
+  ) => {
+    if (!editor || readOnly || draggedId === targetId) return;
+    const dragged = editor.scene.getNode(draggedId);
+    const target = editor.scene.getNode(targetId);
+    if (!dragged || !target || target.id === draggedId) return;
+
+    const siblings = editor.scene
+      .getChildren(target.parentId, target.pageId)
+      .filter((s) => s.id !== draggedId);
+    const targetIdx = siblings.findIndex((s) => s.id === targetId);
+    if (targetIdx < 0) return;
+
+    const afterIndex = position === 'above' ? target.index : siblings[targetIdx - 1]?.index ?? null;
+    const beforeIndex =
+      position === 'above' ? siblings[targetIdx + 1]?.index ?? null : target.index;
+
+    editor.commands.execute({
+      type: 'reorder',
+      nodeId: draggedId,
+      parentId: target.parentId,
+      afterIndex,
+      beforeIndex,
+    });
+  };
+
   const insertAssetOnCanvas = useCallback(
     (asset: AssetDto, worldPoint?: Point, label?: string) => {
       if (!editor || readOnly) return;
@@ -598,6 +627,7 @@ export default function ProjectEditorPage({
             });
           }}
           onReorderNode={handleReorderNode}
+          onDragReorderNode={handleDragReorderNode}
           onUploadAssetFile={(file) => void uploadAndInsertAsset(file)}
           onInsertAsset={(asset) => insertAssetOnCanvas(asset)}
         />
