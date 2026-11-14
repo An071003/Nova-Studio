@@ -19,7 +19,7 @@ _(không có)_
 | P1-T02 | DONE | 2026-11-14 | PROBE PASS: 1 step(s) (postgres, redis, minio+nova-assets, mailpit Healthy) |
 | P1-T03 | DONE | 2026-11-14 | PROBE PASS: 5 step(s) (Tests 8/8 passed; permissions.ts 100% stmts/branch/funcs/lines) |
 | P1-T04 | DONE | 2026-11-14 | PROBE PASS: 6 step(s) (unit 3/3 + e2e 2/2; db/redis/s3 health 200; 3 users seeded) |
-| P1-T05 | TODO | | |
+| P1-T05 | DONE | 2026-11-14 | PROBE PASS: 6 step(s) (unit 4/4 + e2e 5/5: register/login/refresh/reuse/logout/me/429) |
 | P1-T06 | TODO | | |
 | P1-T07 | TODO | | |
 | P1-T08 | TODO | | |
@@ -52,3 +52,4 @@ Status hợp lệ: `TODO | IN_PROGRESS | BLOCKED | REVIEW | DONE`.
 | 2026-11-14 | P1-T02 | 2 CONTRAST rounds: switched MinIO to `pgsty/silo:latest` + inline SigV4 bucket init & healthcheck (public Docker Hub `minio/minio` removed & `--wait` fails on exiting one-shot containers). |
 | 2026-11-14 | P1-T03 | 0 CONTRAST rounds: 100% coverage on `permissions.ts` and all Zod schemas. |
 | 2026-11-14 | P1-T04 | 1 CONTRAST round: added direct `express` + `@types/express` for pnpm strict node_modules. |
+| 2026-11-14 | P1-T05 | 0 CONTRAST rounds: Auth + refresh token reuse family revocation + throttler e2e PASS first run. |
