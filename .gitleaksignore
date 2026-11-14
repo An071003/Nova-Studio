@@ -1,0 +1,5 @@
+# Historical false positives in dev compose and WebCrypto algorithm docs
+98f10cfef3fa07030f373c096bca6a2cecffc50c:infra/docker-compose.dev.yml:curl-auth-user:40
+98f10cfef3fa07030f373c096bca6a2cecffc50c:infra/docker-compose.dev.yml:curl-auth-user:56
+d483a3ba3f3a50b2b8f82591294a86ef79c2c104:.agents/skills/modern-web-guidance/guides/security/client-side-encryption.md:generic-api-key:187
+d483a3ba3f3a50b2b8f82591294a86ef79c2c104:.agents/skills/modern-web-guidance/guides/security/client-side-encryption.md:generic-api-key:201

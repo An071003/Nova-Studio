@@ -37,7 +37,7 @@ export const ExportProcessJobSchema = z.object({
   key: z.string().min(1),
   thumbnailKey: z.string().min(1).optional(),
   nodes: z.array(CanvasNodeSchema).optional(),
-  assetKeys: z.record(z.string()).optional(),
+  assetKeys: z.record(z.string(), z.string()).optional(),
 });
 
 export type ExportProcessJob = z.infer<typeof ExportProcessJobSchema>;

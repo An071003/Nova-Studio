@@ -1,9 +1,9 @@
 import type { PipeTransform } from '@nestjs/common';
 import { ERROR_CODES, NovaError } from '@nova/shared';
-import type { ZodSchema } from 'zod';
+import type { ZodType } from 'zod';
 
 export class ZodValidationPipe<T> implements PipeTransform<unknown, T> {
-  constructor(private readonly schema: ZodSchema<T>) {}
+  constructor(private readonly schema: ZodType<T>) {}
 
   transform(value: unknown): T {
     const parsed = this.schema.safeParse(value);

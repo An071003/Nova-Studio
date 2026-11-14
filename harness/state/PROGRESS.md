@@ -7,11 +7,11 @@
 - M2 — Production: IN_PROGRESS
 
 ## Current task
-- ID: P1-T22 · Status: IN_PROGRESS · Started: 2026-11-14
-- Goal: Complete security hardening & threat checklist (`docs/nova/07-SECURITY.md`), Redis-backed `ThrottlerStorage` in `apps/api`, Helmet + CSP headers in `apps/web`, dependency audit, and secret scanning (`gitleaks`).
-- Files touched: `apps/api`, `apps/web/next.config.ts`, `docs/nova/07-SECURITY.md`, `package.json`.
-- Risks: Transitive/major advisories in `pnpm audit --prod` (`postcss`, `deepmerge-ts`, `zod`) and `gitleaks` CLI availability for `probe.ps1 -Scope security`.
-- Probe plan: `pwsh -NoProfile -File harness/probes/probe.ps1 -Scope security` + `probe.ps1 -Scope api`.
+- ID: P1-T23 · Status: IN_PROGRESS · Started: 2026-11-14
+- Goal: Implement performance benchmarks (`packages/editor-core/test/editor.bench.ts`) and Eval E12 (1,000 scene nodes load <= 2s + 10 concurrent Hocuspocus clients at 5 ops/s with p95 <= 150ms, 100% convergence, 0 errors, `E12.png`).
+- Files touched: `packages/editor-core/package.json`, `packages/editor-core/test/editor.bench.ts`, `apps/web/e2e/evals/perf.eval.spec.ts`.
+- Risks: Hocuspocus client burst coordination and keeping `p95 <= 150ms` under 10 concurrent clients on single dev machine.
+- Probe plan: `pwsh -NoProfile -File harness/probes/probe.ps1 -Scope perf`.
 
 ## Blockers
 _(không có)_
@@ -41,8 +41,8 @@ _(không có)_
 | P1-T19 | DONE | 2026-11-14 | `worker test` PASS (`5/5` incl. auto-version sweep & 50-cap prune); `probe -Scope api` PASS 6/6 (`9/9` unit, `12/12` e2e incl. `versions.e2e-spec.ts`); `probe -Scope e2e` PASS 5/5 (`E1–E8` `8 passed (45.6s)` + `E8.png`) |
 | P1-T20 | DONE | 2026-11-14 | `probe -Scope editor-core` PASS (`22/22` tests, 89.92% coverage); `probe -Scope e2e` PASS 5/5 (`E1–E10` `10 passed (49.8s)` + `E9.png`/`E10.png`) |
 | P1-T21 | DONE | 2026-11-14 | `shared` `12/12`; `worker` `6/6`; `probe -Scope api` PASS 6/6 (`9/9` unit, `13/13` e2e incl. `exports.e2e-spec.ts`); `web e2e` smoke `4/4`; `probe -Scope e2e` PASS 5/5 (`11 passed (51.4s)` `E1–E11` + `E11.png`) |
-| P1-T22 | IN_PROGRESS | 2026-11-14 | |
-| P1-T23 | TODO | | |
+| P1-T22 | DONE | 2026-11-14 | probe security PASS (6 steps: lint, typecheck, guards, pnpm audit 0 vulns, gitleaks 0 leaks); probe api PASS (5 unit/10 tests, 8 e2e/13 tests); realtime 5 tests PASS; web build PASS |
+| P1-T23 | IN_PROGRESS | 2026-11-14 | |
 | P1-T24 | TODO | | |
 | P1-T25 | TODO | | |
 | M2-GATE | TODO | | |

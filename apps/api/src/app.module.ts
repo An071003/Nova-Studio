@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { AssetsModule } from './assets/assets.module';
+import { RedisThrottlerStorage } from './common/redis-throttler.storage';
 import { ExportsModule } from './exports/exports.module';
 import { HealthController } from './health/health.controller';
 import { PermissionsModule } from './permissions/permission.service';
@@ -15,13 +16,16 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
   imports: [
     PrismaModule,
     PermissionsModule,
-    ThrottlerModule.forRoot([
-      {
-        name: 'default',
-        ttl: 60_000,
-        limit: 300,
-      },
-    ]),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          name: 'default',
+          ttl: 60_000,
+          limit: 300,
+        },
+      ],
+      storage: new RedisThrottlerStorage(),
+    }),
     AuthModule,
     WorkspacesModule,
     ProjectsModule,
