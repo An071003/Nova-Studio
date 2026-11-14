@@ -2,7 +2,7 @@
   "extends": "../../packages/config/tsconfig.esm.json",
   "compilerOptions": {
     "noEmit": true,
-    "rootDir": "src"
+    "rootDir": "."
   },
-  "include": ["src"]
+  "include": ["src", "test"]
 }

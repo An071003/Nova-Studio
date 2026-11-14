@@ -60,3 +60,7 @@ Lesson `confidence: high` được dùng ≥ 3 lần → skill `nova-harness-evo
 - Fix / Pattern: Luôn gắn `@Inject(DependencyClass)` trên mọi tham số constructor trong NestJS controller/service/guard.
 - Evidence: `test/health.e2e-spec.ts` 2/2 PASS dưới Vitest không cần `unplugin-swc`.
 - Confidence: high · Uses: 1
+
+### L-009: [realtime] @hocuspocus/provider shared websocketProvider requires attach() and minDelay <= delay
+- **Rule**: When passing an explicit `HocuspocusProviderWebsocket` instance via `websocketProvider`, `HocuspocusProvider` sets `manageSocket = false` and skips `attach()`, so callers must set `autoConnect: false` on the socket, create `HocuspocusProvider`, call `provider.attach()`, and then call `socket.connect()`. When customizing retry delays on `HocuspocusProviderWebsocket`, always specify `minDelay <= delay` (default `minDelay` is `1000`, so overriding `delay` alone throws inside `@lifeomic/attempt` before attempting a WebSocket connection).
+- **Proof**: Initial `apps/realtime/test/realtime.test.ts` runs timed out with `[opened=false statuses= maxErr=Error: delay cannot be less than minDelay]`; fixing `provider.attach()`, `autoConnect: false`, and `minDelay: 50` yielded `PROBE PASS: 5 step(s)` (`4/4` tests in 1.14s).

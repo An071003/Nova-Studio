@@ -5,14 +5,29 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "lint": "eslint src",
+    "lint": "eslint src test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@nova/shared": "workspace:*"
+    "@hocuspocus/extension-database": "^4.8.0",
+    "@hocuspocus/server": "^4.8.0",
+    "@nova/editor-core": "workspace:*",
+    "@nova/shared": "workspace:*",
+    "dotenv": "^16.6.1",
+    "ioredis": "^5.11.1",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.1",
+    "pino": "^9.14.0",
+    "ws": "^8.23.0",
+    "yjs": "^13.6.33",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@hocuspocus/provider": "^4.8.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/pg": "^8.23.1",
+    "@types/ws": "^8.18.2",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   }
