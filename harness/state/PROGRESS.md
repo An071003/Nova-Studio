@@ -16,7 +16,7 @@ _(không có)_
 | ID | Status | Date | Evidence (dòng tổng kết probe) |
 |---|---|---|---|
 | P1-T01 | DONE | 2026-11-14 | PROBE PASS: 6 step(s) (lint, typecheck, guards, 9 pkg build/test, 12/12 tests) |
-| P1-T02 | TODO | | |
+| P1-T02 | DONE | 2026-11-14 | PROBE PASS: 1 step(s) (postgres, redis, minio+nova-assets, mailpit Healthy) |
 | P1-T03 | TODO | | |
 | P1-T04 | TODO | | |
 | P1-T05 | TODO | | |
@@ -49,3 +49,4 @@ Status hợp lệ: `TODO | IN_PROGRESS | BLOCKED | REVIEW | DONE`.
 | Date | Task | Note (CONTRAST rounds, follow-ups) |
 |---|---|---|
 | 2026-11-14 | P1-T01 | 1 CONTRAST round: added top-level `main`/`types` for CJS consumers & 20s timeout for cold ESLint boundary test. |
+| 2026-11-14 | P1-T02 | 2 CONTRAST rounds: switched MinIO to `pgsty/silo:latest` + inline SigV4 bucket init & healthcheck (public Docker Hub `minio/minio` removed & `--wait` fails on exiting one-shot containers). |

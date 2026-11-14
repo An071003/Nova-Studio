@@ -1,0 +1,76 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nova-postgres
+    environment:
+      POSTGRES_USER: nova
+      POSTGRES_PASSWORD: nova
+      POSTGRES_DB: nova
+    ports:
+      - "5432:5432"
+    volumes:
+      - nova_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nova -d nova"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+  redis:
+    image: redis:7-alpine
+    container_name: nova-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - nova_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+  minio:
+    image: pgsty/silo:latest
+    container_name: nova-minio
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        (
+          until curl -sf http://127.0.0.1:9000/minio/health/live >/dev/null; do sleep 1; done
+          curl -s -o /dev/null -X PUT --aws-sigv4 'aws:amz:us-east-1:s3' --user 'minio:minio12345' http://127.0.0.1:9000/nova-assets
+        ) &
+        exec /usr/bin/docker-entrypoint.sh silo server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio12345
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - nova_minio:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "curl -sf http://127.0.0.1:9000/minio/health/live && curl -sf --aws-sigv4 'aws:amz:us-east-1:s3' --user 'minio:minio12345' -I http://127.0.0.1:9000/nova-assets >/dev/null"
+      interval: 3s
+      timeout: 5s
+      retries: 15
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: nova-mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8025/livez"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  nova_pgdata:
+  nova_redis:
+  nova_minio:

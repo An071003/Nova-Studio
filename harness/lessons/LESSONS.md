@@ -46,3 +46,10 @@ Lesson `confidence: high` được dùng ≥ 3 lần → skill `nova-harness-evo
 - Fix / Pattern: Đặt `"main": "./dist/cjs/index.js"`, `"module": "./dist/esm/index.js"`, `"types": "./dist/cjs/index.d.ts"` cùng `exports`, compile dual ESM+CJS qua `packages/config/scripts/dual-build.mjs`.
 - Evidence: `probe.ps1 -Scope all` trước FAIL (4 steps) → sau PASS (6/6 steps).
 - Confidence: high · Uses: 1
+
+### L-007 Windows Docker Desktop daemon & MinIO image  #infra
+- Date / Task: 2026-11-14 / P1-T02
+- Symptom: Non-daemon `run_command` kills Docker Desktop when command returns; `minio/minio:latest` returns `pull access denied`; `docker compose up --wait` fails on one-shot init containers (`exited (0)`).
+- Fix / Pattern: Start Docker Desktop via `Start-Process "...\Docker Desktop.exe" -Wait` with `IsDaemon: true`. Use `pgsty/silo:latest` with inline `curl --aws-sigv4` bucket init + `HEAD` check in `minio` healthcheck.
+- Evidence: `probe.ps1 -Scope infra` trước FAIL → sau PASS (`nova-postgres`, `nova-redis`, `nova-minio`, `nova-mailpit` Healthy).
+- Confidence: high · Uses: 1
