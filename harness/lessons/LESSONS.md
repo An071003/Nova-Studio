@@ -38,3 +38,11 @@ Lesson `confidence: high` được dùng ≥ 3 lần → skill `nova-harness-evo
 - Symptom: Browser nhận URL `http://minio:9000/...` không truy cập được.
 - Fix: dùng `S3_PUBLIC_ENDPOINT` riêng để ký URL cho browser; endpoint nội bộ cho server.
 - Confidence: medium · Uses: 0
+
+### L-006 Workspace dual ESM/CJS cần top-level `main`/`types` cho NestJS CJS  #monorepo #shared
+- Date / Task: 2026-11-14 / P1-T01
+- Symptom: `TS2307: Cannot find module '@nova/shared'` dưới `moduleResolution: Node10/Node` khi chỉ có `exports`.
+- Root cause: `moduleResolution: Node10` không đọc `exports` của `package.json`.
+- Fix / Pattern: Đặt `"main": "./dist/cjs/index.js"`, `"module": "./dist/esm/index.js"`, `"types": "./dist/cjs/index.d.ts"` cùng `exports`, compile dual ESM+CJS qua `packages/config/scripts/dual-build.mjs`.
+- Evidence: `probe.ps1 -Scope all` trước FAIL (4 steps) → sau PASS (6/6 steps).
+- Confidence: high · Uses: 1

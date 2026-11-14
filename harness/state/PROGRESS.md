@@ -7,11 +7,7 @@
 - M2 — Production: NOT_STARTED
 
 ## Current task
-- ID: P1-T01 · Status: IN_PROGRESS · Started: 2026-11-14
-- Goal: Scaffold monorepo pnpm + Turborepo, strict TS, ESLint boundaries, Prettier, Vitest, and all 9 workspace packages.
-- Files: `pnpm-workspace.yaml`, `package.json`, `turbo.json`, `tsconfig.base.json`, `eslint.config.mjs`, `.prettierrc`, `packages/*`, `apps/*`
-- Risks: pnpm `-- --coverage` arg forwarding with Vitest; ESLint v9 flat config + `import/no-restricted-paths` on Windows paths.
-- Probe plan: `pwsh harness/probes/probe.ps1 -Scope all` + ESLint boundary rejection fixture test.
+_(trống)_
 
 ## Blockers
 _(không có)_
@@ -19,7 +15,7 @@ _(không có)_
 ## Task status
 | ID | Status | Date | Evidence (dòng tổng kết probe) |
 |---|---|---|---|
-| P1-T01 | IN_PROGRESS | 2026-11-14 | |
+| P1-T01 | DONE | 2026-11-14 | PROBE PASS: 6 step(s) (lint, typecheck, guards, 9 pkg build/test, 12/12 tests) |
 | P1-T02 | TODO | | |
 | P1-T03 | TODO | | |
 | P1-T04 | TODO | | |
@@ -52,3 +48,4 @@ Status hợp lệ: `TODO | IN_PROGRESS | BLOCKED | REVIEW | DONE`.
 ## Log
 | Date | Task | Note (CONTRAST rounds, follow-ups) |
 |---|---|---|
+| 2026-11-14 | P1-T01 | 1 CONTRAST round: added top-level `main`/`types` for CJS consumers & 20s timeout for cold ESLint boundary test. |

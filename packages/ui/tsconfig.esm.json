@@ -1,0 +1,11 @@
+{
+  "extends": "../config/tsconfig.esm.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "outDir": "dist/esm",
+    "rootDir": "src"
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+}

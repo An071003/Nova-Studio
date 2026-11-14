@@ -1,0 +1,1 @@
+export const WORKSPACE_CONFIG_VERSION = 1;

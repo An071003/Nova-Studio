@@ -1,0 +1,22 @@
+{
+  "name": "@nova/config",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./tsconfig.esm.json": "./tsconfig.esm.json",
+    "./tsconfig.cjs.json": "./tsconfig.cjs.json",
+    "./tsconfig.react.json": "./tsconfig.react.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "extends": "../../packages/config/tsconfig.cjs.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node10",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "test/**"]
+}

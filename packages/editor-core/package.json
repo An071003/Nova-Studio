@@ -1,0 +1,33 @@
+{
+  "name": "@nova/editor-core",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "default": "./dist/esm/index.js"
+    }
+  },
+  "scripts": {
+    "build": "node ../config/scripts/dual-build.mjs",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "bench": "vitest bench"
+  },
+  "dependencies": {
+    "@nova/shared": "workspace:*",
+    "yjs": "^13.6.24"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.1",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
