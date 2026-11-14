@@ -7,9 +7,9 @@
 - M2 — Production: NOT_STARTED
 
 ## Current task
-- ID: P1-T11 · Status: DONE · Completed: 2026-11-14
-- Goal: Implement `packages/ui` design tokens & accessible UI primitives and `apps/web` Next.js 15 App Router scaffold with TanStack Query, refresh-on-401 API client, `/login`, `/register`, `/dashboard` shell, and Playwright E2E smoke test.
-- Evidence: `@nova/ui` build/typecheck/lint/test PASS (`3/3`); `apps/web` `next build` PASS; `pwsh harness/probes/probe.ps1 -Scope web` PASS 6/6 (`vitest` 3/3, Playwright `auth.spec.ts` 1/1 + screenshots in `harness/evals/screenshots/p1-t11-*.png`).
+- ID: P1-T12 · Status: DONE · Completed: 2026-11-14
+- Goal: Implement full Dashboard CRUD: workspace switcher + create/rename workspace, `<search>` filter, "+ New design" dialog, 16:10 project grid with rename, duplicate, and delete confirmation dialogs, plus Playwright CRUD E2E & screenshot.
+- Evidence: `pwsh harness/probes/probe.ps1 -Scope web` PASS 6/6 (`vitest` 3/3, Playwright `auth.spec.ts` + `dashboard.spec.ts` 2/2 passed) & `pnpm --filter web build` PASS; screenshot `harness/evals/screenshots/p1-t12-dashboard.png`.
 
 ## Blockers
 _(không có)_
@@ -28,7 +28,7 @@ _(không có)_
 | P1-T09 | DONE | 2026-11-14 | `probe -Scope realtime` PASS 5/5 (4/4 tests: health, 2-client sync, viewer readOnly, bad tickets, >1MB 1009, restart DB persist, Redis restore) |
 | P1-T10 | DONE | 2026-11-14 | `probe -Scope api` PASS 6/6 (unit 9/9, e2e 8/8 incl. role matrix + override + 404 deleted/non-member + 60s HS256 claims) & `probe -Scope realtime` PASS 5/5 |
 | P1-T11 | DONE | 2026-11-14 | `probe -Scope web` PASS 6/6 (`@nova/ui` 3/3, `web` unit 3/3, `next build` ok, Playwright `auth.spec.ts` 1/1 + screenshots) |
-| P1-T12 | TODO | | |
+| P1-T12 | DONE | 2026-11-14 | `probe -Scope web` PASS 6/6 (Playwright `auth` + `dashboard` CRUD 2/2 + `next build` PASS + screenshot) |
 | P1-T13 | TODO | | |
 | P1-T14 | TODO | | |
 | P1-T15 | TODO | | |
@@ -61,3 +61,4 @@ Status hợp lệ: `TODO | IN_PROGRESS | BLOCKED | REVIEW | DONE`.
 | 2026-11-14 | P1-T09 | 2 CONTRAST rounds: Added `provider.attach()` + `autoConnect: false` and `minDelay <= delay` on `HocuspocusProviderWebsocket` (documented in `LESSONS.md` `L-009`). Added `@hocuspocus/server` v4 `websocketOptions.maxPayload` + `beforeHandleMessage` 1MB guards, Postgres `"ProjectDocument"` upsert, and Redis `nova:restore:*` reconciliation. `probe -Scope realtime` PASS 5/5 (4/4 tests). |
 | 2026-11-14 | P1-T10 | 0 CONTRAST rounds: Extracted `RealtimeTicketClaimsSchema` to `@nova/shared` so `apps/api` and `apps/realtime` share one Zod schema; added `POST /api/v1/projects/:id/realtime-ticket` (`@HttpCode(200)`) checking `project.realtime_connect`. `probe -Scope api` PASS 6/6 (unit 9/9, e2e 8/8) + `probe -Scope realtime` PASS 5/5. |
 | 2026-11-14 | P1-T11 | 1 CONTRAST round: Fixed ESM `__dirname` (`fileURLToPath`) in `playwright.config.ts` & `auth.spec.ts`; added `@source` to `globals.css` for Tailwind v4 scanning `@nova/ui/src`. Built `packages/ui` + Next.js App Router (`/login`, `/register`, `/dashboard`), single-flight refresh-on-401 `NovaApiClient`, and Playwright E2E + screenshots (`probe -Scope web` PASS 6/6). |
+| 2026-11-14 | P1-T12 | 1 CONTRAST round: Caught permission key mismatch (`project.edit` -> `project.update`) via `typecheck` & Playwright `dashboard.spec.ts`; verified full workspace/project CRUD, `<search>` filter, duplicate, delete dialog, and screenshot (`probe -Scope web` PASS 6/6, `2/2` E2E). |
