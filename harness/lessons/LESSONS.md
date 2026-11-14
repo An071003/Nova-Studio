@@ -87,3 +87,27 @@ Lesson `confidence: high` được dùng ≥ 3 lần → skill `nova-harness-evo
 - **Fix / Pattern**: Never touch LWW `Y.Map` metadata keys (`updatedAt`) during in-place `Y.Text` edits (`handleEditText` / `handleSetText` when `Y.Text` is already attached), guard `Y.UndoManager` `deleteFilter` so active `nodeMap` property items (`parent._map.get(parentSub) === item && item.left !== null`) are never deleted when `redoItem` skips restoration, and default missing `updatedAt` in `readNodeFromMap`.
 - **Evidence**: Deterministic unit test `concurrent editText undo reverts only local insertion regardless of clientID order` (`[1, 2]` and `[2, 1]`) + `probe -Scope editor-core` PASS (`22/22`) + Playwright `E10` + `probe -Scope e2e` PASS (`10/10`).
 - **Confidence**: high · Uses: 1
+
+### L-013: [api] Auth refresh throttler and Redis rate-limit keys collide across sequential localhost E2E runs `#api #testing #security`
+- **Date / Task**: 2026-11-14 / P1-T21
+- **Symptom**: Running >10 Playwright specs against localhost within 60s tripped hardcoded `limit: 30` on `POST /auth/refresh`, producing `429 Too Many Requests` redirects to `/login` in later specs; Vitest API E2E runs also shared throttler counters in Redis.
+- **Root cause**: All browser E2E runs share `127.0.0.1` IP and invoke `/auth/refresh` on page reloads/tabs, hitting the global strict throttle counter within a 60s window.
+- **Fix / Pattern**: Keep strict production limits when `NODE_ENV === 'production'`, read `NOVA_E2E_THROTTLE_LIMIT` for non-production test runners (`playwright.config.ts`), and namespace `RedisThrottlerStorage` keys by UUID when `process.env.VITEST` is set.
+- **Evidence**: `probe -Scope e2e` before (`E8` 429 redirect after `E11`) → after (`E1–E12` `12 passed` via `probe -Scope gate-m2` + `api test:e2e` `8/8` files / `13/13` tests).
+- **Confidence**: high · Uses: 2
+
+### L-014: [web] Deduplicate proactive token refresh before parallel cold-tab requests `#web #auth #perf`
+- **Date / Task**: 2026-11-14 / P1-T23
+- **Symptom**: Direct navigation to `/project/[id]` in a fresh tab fired `getMe()` and `getProject()` in parallel before `accessToken` existed in memory, emitting initial `401 Unauthorized` browser console errors even when the HttpOnly refresh cookie succeeded.
+- **Root cause**: `NovaApiClient.authorizedFetch` only refreshed after catching a `401`, so concurrent cold-start calls hit the API unauthenticated first.
+- **Fix / Pattern**: In `NovaApiClient.authorizedFetch`, when `!this.accessToken && !skipAuthRefresh`, await the deduplicated `refreshAccessToken()` promise before dispatching requests.
+- **Evidence**: Eval `E12` (`1,000` nodes load `1662.3ms`, `3,000` ops `p95=1.1ms`, `0` browser/console/page errors).
+- **Confidence**: high · Uses: 1
+
+### L-015: [infra] Monorepo pnpm Dockerfiles and SigV4 compose healthchecks `#infra #security #deploy`
+- **Date / Task**: 2026-11-14 / P1-T24
+- **Symptom**: Package `tsc` builds inside multi-stage Dockerfiles failed looking for `/app/tsconfig.base.json`; `pnpm deploy` on pnpm v10 rejected workspace resolution without `--legacy`; `curl --user` in compose/docs triggered `gitleaks` `curl-auth-user`.
+- **Root cause**: Workspace `tsconfig.json` extends root `../../tsconfig.base.json`, and `curl --user user:pass` on CLI/compose triggers secret scanners even with env substitution.
+- **Fix / Pattern**: `COPY tsconfig.base.json ./` (and `apps/api/prisma` for `@prisma/client`) into monorepo Dockerfile builder stages; supply SigV4 credentials to `curl` via `printf 'user = "%s:%s"\n' ... | curl -K -` stdin config in compose (`pgsty/silo:latest`) and runbooks.
+- **Evidence**: `probe -Scope deploy` PASS (8/8 prod Compose services healthy via Caddy `:80`) + `probe -Scope security` PASS (`pnpm audit` 0 high/crit, `gitleaks` 0 leaks).
+- **Confidence**: high · Uses: 1

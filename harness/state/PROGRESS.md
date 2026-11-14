@@ -4,10 +4,10 @@
 
 ## Milestone
 - M1 — MVP: DONE
-- M2 — Production: IN_PROGRESS
+- M2 — Production: DONE
 
 ## Current task
-- ID: M2-GATE · Status: IN_PROGRESS · Started: 2026-11-14
+- ID: M2-GATE · Status: DONE · Started: 2026-11-14
 - Goal: Complete M2 gate verification: unit/integration coverage thresholds (editor-core >= 80%, shared can() 100%, api >= 70%), Lighthouse accessibility score >= 90 on `/dashboard`, full `probe.ps1 -Scope gate-m2` (`E1–E12` + `pnpm test` + `audit`), check off `docs/nova/09-QA.md`, and run `nova-harness-evolve`.
 - Files touched: `docs/nova/09-QA.md`, `harness/lessons/LESSONS.md`, `harness/HARNESS_CHANGELOG.md`, `harness/state/PROGRESS.md`.
 - Risks: Any missing test coverage or dashboard a11y gap requiring targeted fixes + full re-probe.
@@ -45,13 +45,14 @@ _(không có)_
 | P1-T23 | DONE | 2026-11-14 | probe perf PASS (editor-core 1k bench: create 6.98ms, rebuild 2.78ms, searchRect 0.0013ms, updateNodes 100 0.42ms; E12 PASS: 1k load 1699.0ms, 10 clients x 5 ops/s x 60s = 3000 ops p50=0.8ms p95=1.1ms max=7.7ms, 0 errors, 100% converged, E12.png); lint & typecheck 13/13 PASS |
 | P1-T24 | DONE | 2026-11-14 | probe deploy PASS (8/8 prod containers up, 7 healthchecked healthy, Caddy :80 /api/v1/health {"status":"ok","checks":{"db":"up","redis":"up","s3":"up"}}, auth register + /me smoke PASS); worker 7 tests PASS; probe security PASS (6 steps, 0 leaks) |
 | P1-T25 | DONE | 2026-11-14 | probe security PASS (6/6 steps: lint, typecheck, guards, pnpm audit 0 vulns, gitleaks 26 commits 0 leaks); `README.md` & `docs/nova/10-DEPLOYMENT.md` verified against compose/packages |
-| M2-GATE | IN_PROGRESS | 2026-11-14 | |
+| M2-GATE | DONE | 2026-11-14 | `probe -Scope gate-m2` PASS 7/7 (`pnpm test` 13/13 tasks / 20 files 66 tests; `e2e:evals` `12 passed (2.0m)` E1–E12; `pnpm audit` 0 vulns); `api test:e2e` 8/13; `web e2e` 4/4; coverage (`editor-core` 89.92%, `shared/permissions.ts` 100%, `api` e2e 89.58%); Lighthouse a11y `/dashboard` 100/100; `probe -Scope security` PASS 6/6 |
 
 Status hợp lệ: `TODO | IN_PROGRESS | BLOCKED | REVIEW | DONE`.
 
 ## Log
 | Date | Task | Note (CONTRAST rounds, follow-ups) |
 |---|---|---|
+| 2026-11-14 | M2-GATE | 0 code CONTRAST rounds (`lighthouse` initial CDP race resolved in scratch script via standalone Chromium + `connectOverCDP` disconnect). Verified coverage (`@nova/editor-core` 89.92%, `@nova/shared` 89.56% / `permissions.ts` 100%, `apps/api` E2E 89.58%), Lighthouse 13.6.0 Accessibility `100/100` on authenticated `/dashboard`, full `probe -Scope gate-m2` PASS 7/7 (`E1–E12` 12/12), `api test:e2e` 8 files / 13 tests, `web e2e` 4/4, and `nova-harness-evolve` (`L-013`–`L-015` + `HARNESS_CHANGELOG.md`). Remote CI Actions run pending `git remote` push. |
 | 2026-11-14 | P1-T25 | 0 CONTRAST rounds: Authored root `README.md` (architecture, prerequisites, local dev quickstart, seeded accounts, scripts, probes, prod compose) and completed `docs/nova/10-DEPLOYMENT.md` runbook (topology, secret generation via `openssl`, clean-machine deploy & health verification, `pg_dump`/`pg_restore` + S3 backup/restore, key rotation, rollback, horizontal scaling notes). Verified `probe -Scope security` PASS (6/6). |
 | 2026-11-14 | P1-T21 | 1 CONTRAST round: Eval E11 added an 11th Playwright run within 60s, exposing hardcoded `limit: 30` on `POST /auth/refresh` causing E8 to 429-redirect to `/login` when run after E11. Scoped `AUTH_REFRESH_LIMIT` in `auth.controller.ts` to respect `NOVA_E2E_THROTTLE_LIMIT` only outside `NODE_ENV === 'production'`. Implemented shared deterministic SVG renderer (`renderCanvasNodesToSvg`), `apps/worker` Sharp PNG/400x225 WebP processor, `ExportsModule` with live `apps/realtime` Redis snapshot query + S3 presigned export + thumbnail streaming, split Export popover (`1x`/`2x`, Full/Selection, Client/Server), Bearer-authenticated dashboard `<ProjectThumbnail>`, and Eval E11 (`E1–E11` `11 passed`). |
 | 2026-11-14 | P1-T20 | 1 CONTRAST round: Eval E10 uncovered a real Yjs concurrency bug when `docA.clientID > docB.clientID`: `handleEditText` touched `updatedAt` on `nodeMap` concurrently, causing `Y.UndoManager` (`redoItem` conflict) to delete `updatedAt` to `undefined` and hide the node. Fixed by skipping `nodeMap.set('updatedAt')` on in-place `Y.Text` edits, adding a `deleteFilter` guard in `HistoryManager`, and defaulting `updatedAt` in `readNodeFromMap` (`L-012`). Also added 45s proactive ticket refresh and TopBar Follow User viewport sync. |
