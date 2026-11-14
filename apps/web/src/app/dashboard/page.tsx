@@ -41,6 +41,64 @@ function formatRelativeDate(iso: string): string {
   });
 }
 
+function ProjectThumbnail({
+  projectId,
+  thumbnailUrl,
+  name,
+}: {
+  projectId: string;
+  thumbnailUrl: string | null;
+  name: string;
+}) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!thumbnailUrl) {
+      setObjectUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+    let allocatedUrl: string | null = null;
+
+    void apiClient
+      .fetchProjectThumbnailObjectUrl(projectId)
+      .then((nextUrl) => {
+        if (cancelled) {
+          if (nextUrl) URL.revokeObjectURL(nextUrl);
+          return;
+        }
+        allocatedUrl = nextUrl;
+        setObjectUrl(nextUrl);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setObjectUrl(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      if (allocatedUrl) {
+        URL.revokeObjectURL(allocatedUrl);
+      }
+    };
+  }, [projectId, thumbnailUrl]);
+
+  if (!objectUrl) {
+    return <span>Open canvas</span>;
+  }
+
+  return (
+    <img
+      src={objectUrl}
+      data-testid={`project-thumb-${projectId}`}
+      alt={`${name} preview`}
+      className="w-full h-full object-cover"
+    />
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -518,15 +576,11 @@ export default function DashboardPage() {
                         href={`/project/${project.id}`}
                         className="aspect-[16/10] nova-dot-canvas border-b border-[var(--border)] flex items-center justify-center text-[12px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] no-underline"
                       >
-                        {project.thumbnailUrl ? (
-                          <img
-                            src={project.thumbnailUrl}
-                            alt={`${project.name} preview`}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <span>Open canvas</span>
-                        )}
+                        <ProjectThumbnail
+                          projectId={project.id}
+                          thumbnailUrl={project.thumbnailUrl}
+                          name={project.name}
+                        />
                       </Link>
                       <div className="p-4 flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">

@@ -56,7 +56,7 @@ import {
   type RealtimeConnectionState,
   type RealtimeSession,
 } from '../../../lib/realtime-client';
-import { TopBar } from '../../../components/editor/TopBar';
+import { TopBar, type ExportActionOptions } from '../../../components/editor/TopBar';
 import { LayersPanel } from '../../../components/editor/LayersPanel';
 import { PropertiesPanel } from '../../../components/editor/PropertiesPanel';
 import { CanvasStage } from '../../../components/editor/CanvasStage';
@@ -359,6 +359,12 @@ export default function ProjectEditorPage({
       instance?.destroy();
       setEditor(null);
       setRemotePresences([]);
+      if (!initialReadOnlyRef.current) {
+        void apiClient
+          .refreshProjectThumbnail(loadedProjectId)
+          .then(() => queryClient.invalidateQueries({ queryKey: ['projects'] }))
+          .catch(() => {});
+      }
       void session?.destroy();
       void fallbackIdb?.destroy().catch(() => {});
     };
@@ -420,33 +426,92 @@ export default function ProjectEditorPage({
     },
   });
 
-  const handleExportPng = async () => {
+  const triggerDownload = (href: string, filename: string) => {
+    const anchor = document.createElement('a');
+    anchor.href = href;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  };
+
+  const getSafeProjectFilename = () =>
+    (project?.name ?? 'nova-design')
+      .toLowerCase()
+      .replace(/[^a-z0-9-_]+/g, '-')
+      .replace(/^-|-$/g, '') || 'nova-design';
+
+  const handleExportPng = async (opts?: ExportActionOptions) => {
     const renderer = rendererRef.current;
     if (!renderer) {
       pushToast({ title: 'Canvas renderer is not ready yet', tone: 'danger' });
       return;
     }
+    const scale = opts?.scale ?? 1;
+    const scope = opts?.scope ?? (selectedIds.length > 0 ? 'selection' : 'all');
+    const targetIds = scope === 'selection' && selectedIds.length > 0 ? selectedIds : undefined;
     setExporting(true);
     try {
-      const targetIds = selectedIds.length > 0 ? selectedIds : undefined;
       const dataUrl = await renderer.exportDataURL({
-        scale: 1,
+        scale,
         nodeIds: targetIds,
       });
-      const safeName = (project?.name ?? 'nova-design')
-        .toLowerCase()
-        .replace(/[^a-z0-9-_]+/g, '-')
-        .replace(/^-|-$/g, '') || 'nova-design';
-      const anchor = document.createElement('a');
-      anchor.href = dataUrl;
-      anchor.download = `${safeName}.png`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      pushToast({ title: 'Exported PNG', tone: 'success' });
+      triggerDownload(dataUrl, `${getSafeProjectFilename()}${scale > 1 ? `@${scale}x` : ''}.png`);
+      if (!readOnly) {
+        void apiClient
+          .refreshProjectThumbnail(projectId)
+          .then(() => queryClient.invalidateQueries({ queryKey: ['projects'] }))
+          .catch(() => {});
+      }
+      pushToast({ title: `Exported PNG (${scale}x)`, tone: 'success' });
     } catch (err) {
       pushToast({
         title: err instanceof Error ? err.message : 'Export failed',
+        tone: 'danger',
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportServerPng = async (opts: ExportActionOptions) => {
+    setExporting(true);
+    try {
+      const targetIds =
+        opts.scope === 'selection' && selectedIds.length > 0 ? selectedIds : undefined;
+      const stateBase64 = editor ? bytesToBase64(Y.encodeStateAsUpdate(editor.doc)) : undefined;
+      const job = await apiClient.createProjectExport(projectId, {
+        format: 'png',
+        scale: opts.scale,
+        ...(targetIds ? { nodeIds: targetIds } : {}),
+        ...(stateBase64 ? { stateBase64 } : {}),
+      });
+
+      if (job.url) {
+        const res = await fetch(job.url);
+        if (!res.ok) {
+          throw new Error('Failed to fetch rendered PNG');
+        }
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        try {
+          triggerDownload(
+            objectUrl,
+            `${getSafeProjectFilename()}${opts.scale > 1 ? `@${opts.scale}x` : ''}.png`,
+          );
+        } finally {
+          window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+        }
+      }
+
+      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      pushToast({
+        title: `Rendered ${job.width ?? '?'}x${job.height ?? '?'} PNG`,
+        tone: 'success',
+      });
+    } catch (err) {
+      pushToast({
+        title: err instanceof Error ? err.message : 'Server export failed',
         tone: 'danger',
       });
     } finally {
@@ -796,6 +861,7 @@ export default function ProjectEditorPage({
         onOpenShare={() => setShareOpen(true)}
         onOpenVersions={() => setVersionsOpen((v) => !v)}
         onExportPng={handleExportPng}
+        onExportServerPng={handleExportServerPng}
       />
 
       {followedCollaborator ? (

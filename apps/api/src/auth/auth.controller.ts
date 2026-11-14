@@ -47,12 +47,21 @@ function clearRefreshCookie(res: Response): void {
   });
 }
 
+const AUTH_REGISTER_LOGIN_LIMIT =
+  process.env.NODE_ENV === 'production'
+    ? 10
+    : Number(process.env.NOVA_E2E_THROTTLE_LIMIT ?? 10);
+const AUTH_REFRESH_LIMIT =
+  process.env.NODE_ENV === 'production'
+    ? 30
+    : Number(process.env.NOVA_E2E_THROTTLE_LIMIT ?? 30);
+
 @Controller()
 export class AuthController {
   constructor(@Inject(AuthService) private readonly auth: AuthService) {}
 
   @Post('auth/register')
-  @Throttle({ default: { limit: Number(process.env.NOVA_E2E_THROTTLE_LIMIT ?? 10), ttl: 60_000 } })
+  @Throttle({ default: { limit: AUTH_REGISTER_LOGIN_LIMIT, ttl: 60_000 } })
   async register(
     @Body(new ZodValidationPipe(RegisterSchema)) dto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
@@ -64,7 +73,7 @@ export class AuthController {
 
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: Number(process.env.NOVA_E2E_THROTTLE_LIMIT ?? 10), ttl: 60_000 } })
+  @Throttle({ default: { limit: AUTH_REGISTER_LOGIN_LIMIT, ttl: 60_000 } })
   async login(
     @Body(new ZodValidationPipe(LoginSchema)) dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
@@ -76,7 +85,7 @@ export class AuthController {
 
   @Post('auth/refresh')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle({ default: { limit: AUTH_REFRESH_LIMIT, ttl: 60_000 } })
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,

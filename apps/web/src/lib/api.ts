@@ -2,11 +2,13 @@ import type {
   AssetDto,
   AssetUrlResponse,
   AuthResponse,
+  CreateExportDto,
   CreateInviteDto,
   CreateProjectDto,
   CreateUploadUrlDto,
   CreateVersionDto,
   CreateWorkspaceDto,
+  ExportJobResponse,
   InviteResponse,
   LoginDto,
   MeResponse,
@@ -132,12 +134,16 @@ export class NovaApiClient {
     return this.refreshPromise;
   }
 
-  async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  private async authorizedFetch(
+    path: string,
+    options: RequestOptions = {},
+    defaultAccept = 'application/json',
+  ): Promise<Response> {
     const { headers = {}, skipAuthRefresh = false, body, ...rest } = options;
 
     const runFetch = (token: string | null): Promise<Response> => {
       const mergedHeaders: Record<string, string> = {
-        Accept: 'application/json',
+        Accept: defaultAccept,
         ...headers,
       };
       if (body !== undefined && !mergedHeaders['Content-Type'] && !(body instanceof FormData)) {
@@ -164,6 +170,12 @@ export class NovaApiClient {
         this.onUnauthenticated?.();
       }
     }
+
+    return response;
+  }
+
+  async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+    const response = await this.authorizedFetch(path, options, 'application/json');
 
     if (!response.ok) {
       let parsed: ApiErrorBody | undefined;
@@ -452,6 +464,49 @@ export class NovaApiClient {
         body: JSON.stringify(body ?? {}),
       },
     );
+  }
+
+  async createProjectExport(
+    projectId: string,
+    dto: CreateExportDto,
+  ): Promise<ExportJobResponse> {
+    return this.request<ExportJobResponse>(
+      `/projects/${encodeURIComponent(projectId)}/exports`,
+      {
+        method: 'POST',
+        body: JSON.stringify(dto),
+      },
+    );
+  }
+
+  async getExportJob(jobId: string): Promise<ExportJobResponse> {
+    return this.request<ExportJobResponse>(
+      `/exports/${encodeURIComponent(jobId)}`,
+      { method: 'GET' },
+    );
+  }
+
+  async refreshProjectThumbnail(projectId: string): Promise<{ thumbnailUrl: string }> {
+    return this.request<{ thumbnailUrl: string }>(
+      `/projects/${encodeURIComponent(projectId)}/thumbnail`,
+      { method: 'POST' },
+    );
+  }
+
+  async fetchProjectThumbnailObjectUrl(projectId: string): Promise<string | null> {
+    const response = await this.authorizedFetch(
+      `/projects/${encodeURIComponent(projectId)}/thumbnail`,
+      { method: 'GET' },
+      'image/webp,image/*',
+    );
+    if (!response.ok) {
+      return null;
+    }
+    const blob = await response.blob();
+    if (blob.size === 0) {
+      return null;
+    }
+    return URL.createObjectURL(blob);
   }
 }
 

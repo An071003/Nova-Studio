@@ -20,3 +20,16 @@ export {
   type AutoVersionSweepResult,
   type AutoVersionWorkerOptions,
 } from './version-worker.js';
+export {
+  PROJECT_THUMBNAIL_BG,
+  PROJECT_THUMBNAIL_HEIGHT,
+  PROJECT_THUMBNAIL_WIDTH,
+  createExportWorker,
+  projectThumbnailKey,
+  renderScenePngBuffer,
+  renderSceneThumbnailWebp,
+  type ExportWorkerOptions,
+  type RenderScenePngInput,
+  type RenderSceneThumbnailInput,
+  type RenderedPngResult,
+} from './export-worker.js';

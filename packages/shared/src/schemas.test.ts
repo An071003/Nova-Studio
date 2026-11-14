@@ -15,6 +15,7 @@ import {
   PRESENCE_COLORS,
   PresenceSchema,
   RegisterSchema,
+  renderCanvasNodesToSvg,
 } from './index.js';
 
 describe('@nova/shared schemas & errors', () => {
@@ -99,5 +100,70 @@ describe('@nova/shared schemas & errors', () => {
     expect(PRESENCE_COLORS).toContain(presence.user.color);
     expect(colorForUserId('u1')).toBe(colorForUserId('u1'));
     expect(colorForUserId('')).toBe(PRESENCE_COLORS[0]);
+  });
+
+  it('renders frame + children to pixel-exact 2x SVG with 0 padding', () => {
+    const base = {
+      pageId: 'page:main',
+      index: 'a0',
+      rotation: 0,
+      opacity: 1,
+      visible: true,
+      locked: false,
+      stroke: null,
+      strokeWidth: 0,
+      createdBy: 'u1',
+      updatedAt: 1700000000000,
+    };
+    const frame = CanvasNodeSchema.parse({
+      ...base,
+      id: 'f1',
+      type: 'frame',
+      parentId: null,
+      name: 'Poster',
+      x: 50,
+      y: 40,
+      width: 400,
+      height: 300,
+      fill: '#1E293B',
+    });
+    const rectChild = CanvasNodeSchema.parse({
+      ...base,
+      id: 'r1',
+      type: 'rect',
+      parentId: 'f1',
+      index: 'a1',
+      name: 'Badge',
+      x: 70,
+      y: 60,
+      width: 80,
+      height: 40,
+      fill: '#7C5CFF',
+    });
+    const textChild = CanvasNodeSchema.parse({
+      ...base,
+      id: 't1',
+      type: 'text',
+      parentId: 'f1',
+      index: 'a2',
+      name: 'Title',
+      x: 70,
+      y: 120,
+      width: 240,
+      height: 40,
+      text: 'NOVA & Studio',
+      fill: '#F8FAFC',
+      fontSize: 24,
+    });
+
+    const rendered = renderCanvasNodesToSvg([frame, rectChild, textChild], {
+      scale: 2,
+      nodeIds: ['f1'],
+    });
+    expect(rendered.width).toBe(800);
+    expect(rendered.height).toBe(600);
+    expect(rendered.svg).toContain('viewBox="50 40 400 300"');
+    expect(rendered.svg).toContain('NOVA &amp; Studio');
+    expect(rendered.svg).toContain('#7C5CFF');
   });
 });

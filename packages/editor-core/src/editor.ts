@@ -20,6 +20,7 @@ export interface ExportOpts {
   pageId?: string;
   scale?: number;
   background?: string | null;
+  padding?: number;
 }
 
 export interface Renderer<TContainer = unknown, TExport = Uint8Array> {

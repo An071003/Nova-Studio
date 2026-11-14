@@ -7,11 +7,11 @@
 - M2 — Production: IN_PROGRESS
 
 ## Current task
-- ID: P1-T21 · Status: IN_PROGRESS · Started: 2026-11-14
-- Goal: Implement client + server-worker PNG export (`1×`/`2×`, full canvas or selection), `POST /projects/:id/exports` + `GET /exports/:jobId`, automatic `Project.thumbnailKey` WebP generation + `GET /projects/:id/thumbnail` for dashboard cards, and Eval E11.
-- Files touched: `packages/shared`, `packages/editor-konva`, `apps/api`, `apps/worker`, `apps/web`, `apps/web/e2e/evals/export.eval.spec.ts`.
-- Risks: Matching client Konva PNG export and headless server Sharp composition at `2×` resolution within `<= 1%` pixel diff on shapes/frame/text scenes, plus handling uploaded image assets in exports.
-- Probe plan: `pnpm --filter worker test`, `probe.ps1 -Scope api`, `pnpm --filter web build`, and `probe.ps1 -Scope e2e` (`E1–E11`).
+- ID: P1-T22 · Status: IN_PROGRESS · Started: 2026-11-14
+- Goal: Complete security hardening & threat checklist (`docs/nova/07-SECURITY.md`), Redis-backed `ThrottlerStorage` in `apps/api`, Helmet + CSP headers in `apps/web`, dependency audit, and secret scanning (`gitleaks`).
+- Files touched: `apps/api`, `apps/web/next.config.ts`, `docs/nova/07-SECURITY.md`, `package.json`.
+- Risks: Transitive/major advisories in `pnpm audit --prod` (`postcss`, `deepmerge-ts`, `zod`) and `gitleaks` CLI availability for `probe.ps1 -Scope security`.
+- Probe plan: `pwsh -NoProfile -File harness/probes/probe.ps1 -Scope security` + `probe.ps1 -Scope api`.
 
 ## Blockers
 _(không có)_
@@ -40,8 +40,8 @@ _(không có)_
 | P1-T18 | DONE | 2026-11-14 | `probe -Scope api` PASS 6/6 (`9/9` unit, `11/11` e2e incl. project override + `LAST_OWNER` + `AuditLog`); `probe -Scope editor-core` PASS; `probe -Scope e2e` PASS 5/5 (`E1–E7` `7 passed (42.4s)` + `E7.png`) |
 | P1-T19 | DONE | 2026-11-14 | `worker test` PASS (`5/5` incl. auto-version sweep & 50-cap prune); `probe -Scope api` PASS 6/6 (`9/9` unit, `12/12` e2e incl. `versions.e2e-spec.ts`); `probe -Scope e2e` PASS 5/5 (`E1–E8` `8 passed (45.6s)` + `E8.png`) |
 | P1-T20 | DONE | 2026-11-14 | `probe -Scope editor-core` PASS (`22/22` tests, 89.92% coverage); `probe -Scope e2e` PASS 5/5 (`E1–E10` `10 passed (49.8s)` + `E9.png`/`E10.png`) |
-| P1-T21 | IN_PROGRESS | 2026-11-14 | |
-| P1-T22 | TODO | | |
+| P1-T21 | DONE | 2026-11-14 | `shared` `12/12`; `worker` `6/6`; `probe -Scope api` PASS 6/6 (`9/9` unit, `13/13` e2e incl. `exports.e2e-spec.ts`); `web e2e` smoke `4/4`; `probe -Scope e2e` PASS 5/5 (`11 passed (51.4s)` `E1–E11` + `E11.png`) |
+| P1-T22 | IN_PROGRESS | 2026-11-14 | |
 | P1-T23 | TODO | | |
 | P1-T24 | TODO | | |
 | P1-T25 | TODO | | |
@@ -52,6 +52,7 @@ Status hợp lệ: `TODO | IN_PROGRESS | BLOCKED | REVIEW | DONE`.
 ## Log
 | Date | Task | Note (CONTRAST rounds, follow-ups) |
 |---|---|---|
+| 2026-11-14 | P1-T21 | 1 CONTRAST round: Eval E11 added an 11th Playwright run within 60s, exposing hardcoded `limit: 30` on `POST /auth/refresh` causing E8 to 429-redirect to `/login` when run after E11. Scoped `AUTH_REFRESH_LIMIT` in `auth.controller.ts` to respect `NOVA_E2E_THROTTLE_LIMIT` only outside `NODE_ENV === 'production'`. Implemented shared deterministic SVG renderer (`renderCanvasNodesToSvg`), `apps/worker` Sharp PNG/400x225 WebP processor, `ExportsModule` with live `apps/realtime` Redis snapshot query + S3 presigned export + thumbnail streaming, split Export popover (`1x`/`2x`, Full/Selection, Client/Server), Bearer-authenticated dashboard `<ProjectThumbnail>`, and Eval E11 (`E1–E11` `11 passed`). |
 | 2026-11-14 | P1-T20 | 1 CONTRAST round: Eval E10 uncovered a real Yjs concurrency bug when `docA.clientID > docB.clientID`: `handleEditText` touched `updatedAt` on `nodeMap` concurrently, causing `Y.UndoManager` (`redoItem` conflict) to delete `updatedAt` to `undefined` and hide the node. Fixed by skipping `nodeMap.set('updatedAt')` on in-place `Y.Text` edits, adding a `deleteFilter` guard in `HistoryManager`, and defaulting `updatedAt` in `readNodeFromMap` (`L-012`). Also added 45s proactive ticket refresh and TopBar Follow User viewport sync. |
 | 2026-11-14 | P1-T19 | 0 runtime CONTRAST rounds (1 typecheck catch on fixture helper name `createMultiplayerProject` before first run). Implemented `VersionsModule` (`GET/POST /versions`, `GET preview`, `POST restore` with `"Before restore"` `isAuto: true` backup + Redis `nova:restore:<projectId>`), worker auto-snapshot sweep & pruning, slide-over Version History drawer with read-only Y.Doc preview banner, and Eval `E8` (`8 passed` first Playwright run). |
 | 2026-11-14 | P1-T18 | 1 CONTRAST round: Eval E7 caught two real gaps: (1) `IndexeddbPersistence` attached before ticket role check could persist tampered console `Y.Doc` edits across Viewer reload — skipped/cleared IDB when role is `VIEWER` / scope is `readonly`; (2) `ToolManager.setTool` / hotkey `r` allowed switching into creation tools while `readOnly` — added `isReadOnly()` guards in `tool-manager.ts`. Also verified Hocuspocus rejects raw `Y.Doc` updates from `VIEWER` connections without peer propagation. |

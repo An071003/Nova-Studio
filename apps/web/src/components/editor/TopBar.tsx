@@ -1,17 +1,20 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
+  ChevronDown,
   Circle,
   Download,
   Frame,
   Hand,
+  History,
   Minus,
   MousePointer2,
   Pencil,
   Redo2,
+  Share2,
   Square,
   Trash2,
   Type,
@@ -29,7 +32,10 @@ export interface OnlineCollaborator {
   isSelf?: boolean;
 }
 
-import { History, Share2 } from 'lucide-react';
+export interface ExportActionOptions {
+  scale: 1 | 2;
+  scope: 'all' | 'selection';
+}
 
 export interface TopBarProps {
   projectName: string;
@@ -52,7 +58,8 @@ export interface TopBarProps {
   onRenameProject: (nextName: string) => Promise<void>;
   onOpenShare?: () => void;
   onOpenVersions?: () => void;
-  onExportPng: () => void;
+  onExportPng: (opts?: ExportActionOptions) => void;
+  onExportServerPng?: (opts: ExportActionOptions) => void;
 }
 
 function getInitials(name: string): string {
@@ -100,10 +107,35 @@ export function TopBar({
   onOpenShare,
   onOpenVersions,
   onExportPng,
+  onExportServerPng,
 }: TopBarProps) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState(projectName);
   const [savingTitle, setSavingTitle] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exportScale, setExportScale] = useState<1 | 2>(2);
+  const [exportScope, setExportScope] = useState<'all' | 'selection'>('all');
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setExportMenuOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [exportMenuOpen]);
 
   const collaborators: OnlineCollaborator[] = [];
   const seenUserIds = new Set<string>();
@@ -346,16 +378,122 @@ export function TopBar({
           </Button>
         ) : null}
 
-        <Button
-          variant="secondary"
-          size="sm"
-          loading={exporting}
-          onClick={onExportPng}
-          aria-label="Export PNG"
-        >
-          <Download className="w-3.5 h-3.5" />
-          <span>Export</span>
-        </Button>
+        <div ref={exportMenuRef} className="relative flex items-center">
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={exporting}
+            onClick={() => onExportPng()}
+            aria-label="Export PNG"
+            className="rounded-r-none border-r-0"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Export</span>
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={exporting}
+            onClick={() => {
+              if (!exportMenuOpen && hasSelection) {
+                setExportScope('selection');
+              } else if (!exportMenuOpen && !hasSelection) {
+                setExportScope('all');
+              }
+              setExportMenuOpen((open) => !open);
+            }}
+            data-testid="export-options-btn"
+            aria-label="Export options"
+            aria-expanded={exportMenuOpen}
+            className="rounded-l-none px-1.5"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </Button>
+
+          {exportMenuOpen ? (
+            <div
+              role="dialog"
+              aria-label="Export options"
+              data-testid="export-popover"
+              className="absolute right-0 top-full mt-2 w-64 rounded-[var(--radius-panel)] border border-[var(--border-strong)] bg-[var(--bg-panel)] p-3 shadow-[var(--shadow-popover)] z-50 flex flex-col gap-2.5"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <label
+                  htmlFor="nova-export-scale"
+                  className="text-[12px] text-[var(--text-secondary)]"
+                >
+                  Scale
+                </label>
+                <select
+                  id="nova-export-scale"
+                  data-testid="export-scale-select"
+                  value={String(exportScale)}
+                  onChange={(e) => setExportScale(Number(e.target.value) === 2 ? 2 : 1)}
+                  className="h-7 px-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--bg-elevated)] text-[12px] text-[var(--text-primary)]"
+                >
+                  <option value="1">1x</option>
+                  <option value="2">2x</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <label
+                  htmlFor="nova-export-scope"
+                  className="text-[12px] text-[var(--text-secondary)]"
+                >
+                  Scope
+                </label>
+                <select
+                  id="nova-export-scope"
+                  data-testid="export-scope-select"
+                  value={hasSelection ? exportScope : 'all'}
+                  onChange={(e) =>
+                    setExportScope(e.target.value === 'selection' ? 'selection' : 'all')
+                  }
+                  className="h-7 px-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--bg-elevated)] text-[12px] text-[var(--text-primary)]"
+                >
+                  <option value="all">Full canvas</option>
+                  <option value="selection" disabled={!hasSelection}>
+                    Selection
+                  </option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5 pt-1 border-t border-[var(--border)]">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  loading={exporting}
+                  data-testid="export-client-btn"
+                  onClick={() => {
+                    const effectiveScope = hasSelection ? exportScope : 'all';
+                    setExportMenuOpen(false);
+                    onExportPng({ scale: exportScale, scope: effectiveScope });
+                  }}
+                >
+                  Export Client PNG
+                </Button>
+                {onExportServerPng ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="primary"
+                    loading={exporting}
+                    data-testid="export-server-btn"
+                    onClick={() => {
+                      const effectiveScope = hasSelection ? exportScope : 'all';
+                      setExportMenuOpen(false);
+                      onExportServerPng({ scale: exportScale, scope: effectiveScope });
+                    }}
+                  >
+                    Export High-Res (Server)
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
     </header>
   );

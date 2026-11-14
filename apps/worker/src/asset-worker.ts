@@ -1,4 +1,4 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import {
   ASSET_PROCESS_QUEUE,
   AssetProcessJobSchema,
@@ -7,44 +7,18 @@ import {
 import { Worker, type Job } from 'bullmq';
 import { Redis } from 'ioredis';
 import { processAssetImage } from './image-processor.js';
+import {
+  createWorkerS3Client,
+  readS3BodyToBuffer,
+  type S3ConnectionOptions,
+} from './s3-utils.js';
 
 export function thumbnailKeyForAsset(projectId: string, assetId: string): string {
   return `projects/${projectId}/thumbs/${assetId}.webp`;
 }
 
-export interface AssetWorkerOptions {
+export interface AssetWorkerOptions extends S3ConnectionOptions {
   redisUrl: string;
-  s3Endpoint: string;
-  s3Region: string;
-  s3Bucket: string;
-  s3AccessKey: string;
-  s3SecretKey: string;
-  s3ForcePathStyle: boolean;
-}
-
-async function readStreamToBuffer(body: unknown): Promise<Buffer> {
-  if (!body) {
-    throw new Error('Empty S3 response body');
-  }
-  if (Buffer.isBuffer(body)) {
-    return body;
-  }
-  if (body instanceof Uint8Array) {
-    return Buffer.from(body);
-  }
-  if (
-    typeof body === 'object' &&
-    body !== null &&
-    'transformToByteArray' in body &&
-    typeof (body as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray ===
-      'function'
-  ) {
-    const arr = await (
-      body as { transformToByteArray: () => Promise<Uint8Array> }
-    ).transformToByteArray();
-    return Buffer.from(arr);
-  }
-  throw new Error('Unsupported S3 body stream type');
 }
 
 export function createAssetWorker(options: AssetWorkerOptions): {
@@ -55,15 +29,7 @@ export function createAssetWorker(options: AssetWorkerOptions): {
     maxRetriesPerRequest: null,
   });
 
-  const s3 = new S3Client({
-    endpoint: options.s3Endpoint,
-    region: options.s3Region,
-    forcePathStyle: options.s3ForcePathStyle,
-    credentials: {
-      accessKeyId: options.s3AccessKey,
-      secretAccessKey: options.s3SecretKey,
-    },
-  });
+  const s3 = createWorkerS3Client(options);
 
   const worker = new Worker<AssetProcessJob>(
     ASSET_PROCESS_QUEUE,
@@ -75,7 +41,7 @@ export function createAssetWorker(options: AssetWorkerOptions): {
           Key: payload.key,
         }),
       );
-      const rawBuffer = await readStreamToBuffer(fetched.Body);
+      const rawBuffer = await readS3BodyToBuffer(fetched.Body);
       const processed = await processAssetImage(rawBuffer, payload.mimeType);
 
       if (processed.sanitizedBuffer) {

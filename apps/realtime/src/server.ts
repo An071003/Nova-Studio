@@ -20,6 +20,7 @@ import {
 } from './ticket.js';
 
 export const ROLE_CHANGE_CHANNEL_PREFIX = 'nova:role-change:';
+export const DOC_REQUEST_CHANNEL_PREFIX = 'nova:doc-req:';
 
 const RoleChangeMessageSchema = z.object({
   userId: z.string().min(1),
@@ -58,6 +59,7 @@ export function createRealtimeServer(
   const store = new PostgresDocumentStore(config.databaseUrl);
   const enableRedis = options.enableRedis ?? true;
   let redisSub: Redis | null = null;
+  let redisPub: Redis | null = null;
   let boundPort = config.port;
   let destroyed = false;
 
@@ -226,6 +228,16 @@ export function createRealtimeServer(
 
   const listen = async (): Promise<{ port: number; wsUrl: string; httpUrl: string }> => {
     if (enableRedis && !redisSub) {
+      const pub = new Redis(config.redisUrl, {
+        lazyConnect: true,
+        maxRetriesPerRequest: null,
+      });
+      pub.on('error', (err) => {
+        logger.error({ err }, 'Redis pub/sub publisher error');
+      });
+      await pub.connect();
+      redisPub = pub;
+
       const sub = new Redis(config.redisUrl, {
         lazyConnect: true,
         maxRetriesPerRequest: null,
@@ -234,6 +246,45 @@ export function createRealtimeServer(
         logger.error({ err }, 'Redis pub/sub subscriber error');
       });
       sub.on('pmessage', (_pattern, channel, message) => {
+        if (channel.startsWith(DOC_REQUEST_CHANNEL_PREFIX)) {
+          const projectId = channel.slice(DOC_REQUEST_CHANNEL_PREFIX.length);
+          void (async () => {
+            try {
+              const reqPayload = z
+                .object({ replyChannel: z.string().min(1) })
+                .parse(JSON.parse(message));
+              const candidateNames = [`project:${projectId}`, projectId];
+              let liveDoc: Y.Doc | undefined;
+              for (const docName of candidateNames) {
+                const candidate = server.hocuspocus.documents.get(docName);
+                if (candidate) {
+                  liveDoc = candidate;
+                  break;
+                }
+              }
+              if (liveDoc && redisPub) {
+                const bytes = Y.encodeStateAsUpdate(liveDoc);
+                await store.storeDocument(projectId, bytes);
+                await redisPub.publish(
+                  reqPayload.replyChannel,
+                  JSON.stringify({
+                    found: true,
+                    stateBase64: Buffer.from(bytes).toString('base64'),
+                  }),
+                );
+              } else if (redisPub) {
+                await redisPub.publish(
+                  reqPayload.replyChannel,
+                  JSON.stringify({ found: false }),
+                );
+              }
+            } catch (err) {
+              logger.error({ err, projectId }, 'Failed to serve live doc snapshot');
+            }
+          })();
+          return;
+        }
+
         if (channel.startsWith(RESTORE_CHANNEL_PREFIX)) {
           const projectId = channel.slice(RESTORE_CHANNEL_PREFIX.length);
           void (async () => {
@@ -275,7 +326,11 @@ export function createRealtimeServer(
         }
       });
       await sub.connect();
-      await sub.psubscribe(`${RESTORE_CHANNEL_PREFIX}*`, `${ROLE_CHANGE_CHANNEL_PREFIX}*`);
+      await sub.psubscribe(
+        `${RESTORE_CHANNEL_PREFIX}*`,
+        `${ROLE_CHANGE_CHANNEL_PREFIX}*`,
+        `${DOC_REQUEST_CHANNEL_PREFIX}*`,
+      );
       redisSub = sub;
     }
 
@@ -309,6 +364,15 @@ export function createRealtimeServer(
           // ignore unsubscribe error during shutdown
         }
         sub.disconnect();
+      }
+      if (redisPub) {
+        const pub = redisPub;
+        redisPub = null;
+        try {
+          await pub.quit();
+        } catch {
+          pub.disconnect();
+        }
       }
       await store.close();
     }

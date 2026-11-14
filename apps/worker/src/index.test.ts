@@ -1,9 +1,18 @@
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import { ERROR_CODES, MAX_ASSET_SIZE_BYTES, NovaError } from '@nova/shared';
+import {
+  DEFAULT_PAGE_ID,
+  ERROR_CODES,
+  MAX_ASSET_SIZE_BYTES,
+  NovaError,
+  type CanvasNode,
+} from '@nova/shared';
 import {
   DEFAULT_MAX_AUTO_VERSIONS,
   processAssetImage,
+  projectThumbnailKey,
+  renderScenePngBuffer,
+  renderSceneThumbnailWebp,
   runAutoVersionSweep,
   thumbnailKeyForAsset,
   type AutoVersionCandidateProject,
@@ -188,5 +197,116 @@ describe('worker auto-version sweep', () => {
 
     expect(versions.filter((v) => v.projectId === 'proj-same')).toHaveLength(1);
     expect(versions.filter((v) => v.projectId === 'proj-first')).toHaveLength(1);
+  });
+});
+
+describe('worker scene export and project thumbnails', () => {
+  it('renders a 400x300 Frame + shapes + image at 2x to exact 800x600 PNG and 400x225 WebP thumbnail', async () => {
+    expect(projectThumbnailKey('proj-42')).toBe('projects/proj-42/project-thumb.webp');
+
+    const imgBuf = await sharp({
+      create: {
+        width: 40,
+        height: 40,
+        channels: 4,
+        background: { r: 34, g: 211, b: 166, alpha: 1 },
+      },
+    })
+      .png()
+      .toBuffer();
+    const embeddedImages = new Map<string, string>([
+      ['asset-1', `data:image/png;base64,${imgBuf.toString('base64')}`],
+    ]);
+
+    const nodes: CanvasNode[] = [
+      {
+        id: 'frame-1',
+        type: 'frame',
+        pageId: DEFAULT_PAGE_ID,
+        parentId: null,
+        index: 'a0',
+        name: 'Frame 1',
+        x: 100,
+        y: 80,
+        width: 400,
+        height: 300,
+        rotation: 0,
+        opacity: 1,
+        visible: true,
+        locked: false,
+        fill: '#FFFFFF',
+        stroke: '#373D4A',
+        strokeWidth: 1,
+        createdBy: 'user-1',
+        updatedAt: 1,
+      },
+      {
+        id: 'rect-1',
+        type: 'rect',
+        pageId: DEFAULT_PAGE_ID,
+        parentId: 'frame-1',
+        index: 'a1',
+        name: 'Hero Box',
+        x: 120,
+        y: 100,
+        width: 120,
+        height: 80,
+        rotation: 0,
+        opacity: 1,
+        visible: true,
+        locked: false,
+        fill: '#7C5CFF',
+        stroke: null,
+        strokeWidth: 0,
+        cornerRadius: 8,
+        createdBy: 'user-1',
+        updatedAt: 2,
+      },
+      {
+        id: 'img-1',
+        type: 'image',
+        pageId: DEFAULT_PAGE_ID,
+        parentId: 'frame-1',
+        index: 'a2',
+        name: 'Badge',
+        x: 300,
+        y: 120,
+        width: 80,
+        height: 80,
+        rotation: 0,
+        opacity: 1,
+        visible: true,
+        locked: false,
+        fill: null,
+        stroke: null,
+        strokeWidth: 0,
+        assetId: 'asset-1',
+        createdBy: 'user-1',
+        updatedAt: 3,
+      },
+    ];
+
+    const exported = await renderScenePngBuffer({
+      nodes,
+      scale: 2,
+      nodeIds: ['frame-1'],
+      embeddedImages,
+    });
+    expect(exported.width).toBe(800);
+    expect(exported.height).toBe(600);
+
+    const pngMeta = await sharp(exported.buffer).metadata();
+    expect(pngMeta.format).toBe('png');
+    expect(pngMeta.width).toBe(800);
+    expect(pngMeta.height).toBe(600);
+
+    const thumb = await renderSceneThumbnailWebp({
+      nodes,
+      embeddedImages,
+    });
+    const thumbMeta = await sharp(thumb).metadata();
+    expect(thumbMeta.format).toBe('webp');
+    expect(thumbMeta.width).toBe(400);
+    expect(thumbMeta.height).toBe(225);
   });
 });

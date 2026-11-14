@@ -1,12 +1,13 @@
 import {
+  collectExportTargets,
   DEFAULT_PAGE_ID,
+  expandSelectedSubtreeIds,
   type CanvasNode,
   type Point,
   type ViewportState,
 } from '@nova/shared';
 import {
   getNodeAABB,
-  mergeAABBs,
   type Editor,
   type ExportOpts,
   type RemotePresence,
@@ -291,12 +292,12 @@ export class KonvaRenderer implements Renderer<HTMLElement, Uint8Array> {
 
     const scale = Math.max(0.25, opts.scale ?? 1);
     const pageId = opts.pageId ?? this.pageId;
-    const targetNodes =
-      opts.nodeIds && opts.nodeIds.length > 0
-        ? opts.nodeIds
-            .map((id) => this.editor.scene.getNode(id))
-            .filter((n): n is CanvasNode => Boolean(n && n.visible))
-        : this.editor.scene.getAllNodes(pageId).filter((n) => n.visible);
+    const allNodes = this.editor.scene.getAllNodes(pageId);
+    const selection = collectExportTargets(allNodes, {
+      nodeIds: opts.nodeIds,
+      pageId,
+      padding: opts.padding,
+    });
 
     const prevBgVisible = this.bgLayer.visible();
     const prevOverlayVisible = this.overlayLayer.visible();
@@ -308,12 +309,12 @@ export class KonvaRenderer implements Renderer<HTMLElement, Uint8Array> {
       this.bgLayer.visible(false);
       this.overlayLayer.visible(false);
 
-      const merged = mergeAABBs(targetNodes.map((n) => getNodeAABB(n)));
+      const merged = selection.bounds;
       if (!merged) {
         return this.stage.toDataURL({ pixelRatio: scale });
       }
 
-      const padding = 16;
+      const padding = selection.padding;
       const worldX = merged.minX - padding;
       const worldY = merged.minY - padding;
       const worldW = Math.max(1, merged.maxX - merged.minX + padding * 2);
@@ -321,7 +322,7 @@ export class KonvaRenderer implements Renderer<HTMLElement, Uint8Array> {
 
       const hiddenForSelection: Konva.Shape[] = [];
       if (opts.nodeIds && opts.nodeIds.length > 0) {
-        const allow = new Set(opts.nodeIds);
+        const allow = expandSelectedSubtreeIds(allNodes, opts.nodeIds);
         for (const [id, shape] of this.shapesById) {
           if (!allow.has(id) && shape.visible()) {
             shape.visible(false);

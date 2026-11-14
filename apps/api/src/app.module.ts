@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { AssetsModule } from './assets/assets.module';
+import { ExportsModule } from './exports/exports.module';
 import { HealthController } from './health/health.controller';
 import { PermissionsModule } from './permissions/permission.service';
 import { PrismaModule } from './prisma/prisma.service';
@@ -26,6 +27,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     ProjectsModule,
     VersionsModule,
     AssetsModule,
+    ExportsModule,
   ],
   controllers: [HealthController],
   providers: [
