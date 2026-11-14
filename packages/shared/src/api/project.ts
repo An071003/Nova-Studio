@@ -19,6 +19,18 @@ export const UpdateProjectMemberSchema = z.object({
 
 export type UpdateProjectMemberDto = z.infer<typeof UpdateProjectMemberSchema>;
 
+export const ProjectMemberSchema = z.object({
+  userId: z.string(),
+  email: z.string().email(),
+  name: z.string(),
+  avatarUrl: z.string().nullable().optional(),
+  workspaceRole: RoleSchema,
+  overrideRole: RoleSchema.nullable(),
+  effectiveRole: RoleSchema,
+});
+
+export type ProjectMemberDto = z.infer<typeof ProjectMemberSchema>;
+
 export const ProjectSummarySchema = z.object({
   id: z.string(),
   workspaceId: z.string(),

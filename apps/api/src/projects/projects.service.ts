@@ -1,19 +1,23 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
 import {
   colorForUserId,
   ERROR_CODES,
   NovaError,
   RealtimeTicketClaimsSchema,
   RealtimeTicketResponseSchema,
+  resolveEffectiveRole,
   type CreateProjectDto,
   type CursorPaginationQuery,
   type ProjectDetailResponse,
+  type ProjectMemberDto,
   type ProjectSummary,
   type RealtimeTicketResponse,
   type Role,
   type UpdateProjectDto,
+  type UpdateProjectMemberDto,
 } from '@nova/shared';
 import type { Project } from '@prisma/client';
+import { Redis } from 'ioredis';
 import jwt from 'jsonwebtoken';
 import * as Y from 'yjs';
 import { getApiEnv } from '../common/env';
@@ -52,11 +56,48 @@ function toProjectSummary(p: Project): ProjectSummary {
 }
 
 @Injectable()
-export class ProjectsService {
+export class ProjectsService implements OnModuleDestroy {
+  private readonly redis: Redis;
+
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(PermissionService) private readonly permissions: PermissionService,
-  ) {}
+  ) {
+    this.redis = new Redis(getApiEnv().redisUrl, {
+      lazyConnect: true,
+      maxRetriesPerRequest: null,
+    });
+    this.redis.on('error', () => {
+      // Avoid unhandled error events during tests or transient Redis disconnects
+    });
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    try {
+      await this.redis.quit();
+    } catch {
+      this.redis.disconnect();
+    }
+  }
+
+  private async publishProjectRoleChange(payload: {
+    userId: string;
+    workspaceId: string;
+    projectId: string;
+    role: Role;
+  }): Promise<void> {
+    try {
+      if (this.redis.status === 'wait') {
+        await this.redis.connect();
+      }
+      await this.redis.publish(
+        `nova:role-change:${payload.workspaceId}`,
+        JSON.stringify(payload),
+      );
+    } catch {
+      // Best-effort notification; Postgres remains authoritative on reconnect
+    }
+  }
 
   async listInWorkspace(
     userId: string,
@@ -220,5 +261,141 @@ export class ProjectsService {
       wsUrl: env.realtimeUrl,
       role,
     });
+  }
+
+  async listProjectMembers(userId: string, projectId: string): Promise<ProjectMemberDto[]> {
+    const { project } = await this.permissions.assertProject(userId, projectId, 'project.view');
+
+    const [workspaceMembers, overrides] = await Promise.all([
+      this.prisma.workspaceMember.findMany({
+        where: { workspaceId: project.workspaceId },
+        include: { user: true },
+        orderBy: { joinedAt: 'asc' },
+      }),
+      this.prisma.projectMember.findMany({
+        where: { projectId },
+      }),
+    ]);
+
+    const overrideByUserId = new Map<string, Role>(
+      overrides.map((o) => [o.userId, o.role as Role]),
+    );
+
+    return workspaceMembers.map((wm) => {
+      const workspaceRole = wm.role as Role;
+      const overrideRole = overrideByUserId.get(wm.userId) ?? null;
+      const effectiveRole = resolveEffectiveRole(workspaceRole, overrideRole) ?? workspaceRole;
+      return {
+        userId: wm.userId,
+        email: wm.user.email,
+        name: wm.user.name,
+        avatarUrl: wm.user.avatarUrl,
+        workspaceRole,
+        overrideRole,
+        effectiveRole,
+      };
+    });
+  }
+
+  async setProjectMemberRole(
+    actorUserId: string,
+    projectId: string,
+    targetUserId: string,
+    dto: UpdateProjectMemberDto,
+  ): Promise<ProjectMemberDto> {
+    const { project } = await this.permissions.assertProject(
+      actorUserId,
+      projectId,
+      'workspace.manage_members',
+    );
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const wm = await tx.workspaceMember.findUnique({
+        where: {
+          workspaceId_userId: { workspaceId: project.workspaceId, userId: targetUserId },
+        },
+        include: { user: true },
+      });
+      if (!wm) {
+        throw new NovaError(ERROR_CODES.NOT_FOUND, 'Workspace member not found');
+      }
+
+      const workspaceRole = wm.role as Role;
+      if (workspaceRole === 'OWNER' && dto.role !== null && dto.role !== 'OWNER') {
+        const ownerCount = await tx.workspaceMember.count({
+          where: { workspaceId: project.workspaceId, role: 'OWNER' },
+        });
+        if (ownerCount <= 1) {
+          throw new NovaError(
+            ERROR_CODES.LAST_OWNER,
+            'Workspace must retain at least one owner',
+          );
+        }
+      }
+
+      if (dto.role === null) {
+        await tx.projectMember.deleteMany({
+          where: { projectId, userId: targetUserId },
+        });
+      } else {
+        await tx.projectMember.upsert({
+          where: { projectId_userId: { projectId, userId: targetUserId } },
+          create: { projectId, userId: targetUserId, role: dto.role },
+          update: { role: dto.role },
+        });
+      }
+
+      const overrideRole = dto.role;
+      const effectiveRole = resolveEffectiveRole(workspaceRole, overrideRole) ?? workspaceRole;
+
+      await tx.auditLog.create({
+        data: {
+          workspaceId: project.workspaceId,
+          actorId: actorUserId,
+          action:
+            overrideRole === null
+              ? 'project.member_override_cleared'
+              : 'project.member_override_updated',
+          targetType: 'project_member',
+          targetId: `${projectId}:${targetUserId}`,
+          meta: {
+            projectId,
+            userId: targetUserId,
+            overrideRole,
+            effectiveRole,
+          },
+        },
+      });
+
+      return {
+        member: {
+          userId: wm.userId,
+          email: wm.user.email,
+          name: wm.user.name,
+          avatarUrl: wm.user.avatarUrl,
+          workspaceRole,
+          overrideRole,
+          effectiveRole,
+        } satisfies ProjectMemberDto,
+        effectiveRole,
+      };
+    });
+
+    await this.publishProjectRoleChange({
+      userId: targetUserId,
+      workspaceId: project.workspaceId,
+      projectId,
+      role: result.effectiveRole,
+    });
+
+    return result.member;
+  }
+
+  async removeProjectMemberOverride(
+    actorUserId: string,
+    projectId: string,
+    targetUserId: string,
+  ): Promise<void> {
+    await this.setProjectMemberRole(actorUserId, projectId, targetUserId, { role: null });
   }
 }

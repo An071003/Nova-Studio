@@ -122,6 +122,9 @@ export class ToolManager {
   }
 
   setTool(tool: ToolId): void {
+    if (this.ctx.commands.isReadOnly() && tool !== 'select' && tool !== 'hand') {
+      return;
+    }
     if (this.activeTool === tool && !this.toolBeforeSpace) {
       return;
     }
@@ -440,16 +443,20 @@ export class ToolManager {
     }
 
     if (mod && keyLower === 'z') {
-      if (e.shiftKey) {
-        this.ctx.history.redo();
-      } else {
-        this.ctx.history.undo();
+      if (!this.ctx.commands.isReadOnly()) {
+        if (e.shiftKey) {
+          this.ctx.history.redo();
+        } else {
+          this.ctx.history.undo();
+        }
       }
       return { handled: true };
     }
 
     if (mod && keyLower === 'y') {
-      this.ctx.history.redo();
+      if (!this.ctx.commands.isReadOnly()) {
+        this.ctx.history.redo();
+      }
       return { handled: true };
     }
 
@@ -580,6 +587,9 @@ export class ToolManager {
       };
       const nextTool = toolMap[keyLower];
       if (nextTool) {
+        if (this.ctx.commands.isReadOnly() && nextTool !== 'select' && nextTool !== 'hand') {
+          return { handled: false };
+        }
         this.setTool(nextTool);
         return { handled: true };
       }

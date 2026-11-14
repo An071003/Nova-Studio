@@ -29,6 +29,8 @@ export interface OnlineCollaborator {
   isSelf?: boolean;
 }
 
+import { Share2 } from 'lucide-react';
+
 export interface TopBarProps {
   projectName: string;
   role: Role;
@@ -46,6 +48,7 @@ export interface TopBarProps {
   onRedo: () => void;
   onDeleteSelection: () => void;
   onRenameProject: (nextName: string) => Promise<void>;
+  onOpenShare?: () => void;
   onExportPng: () => void;
 }
 
@@ -89,6 +92,7 @@ export function TopBar({
   onRedo,
   onDeleteSelection,
   onRenameProject,
+  onOpenShare,
   onExportPng,
 }: TopBarProps) {
   const [editingTitle, setEditingTitle] = useState(false);
@@ -284,6 +288,19 @@ export function TopBar({
         </Button>
 
         <div aria-hidden="true" className="w-px h-5 bg-[var(--border)] mx-1" />
+
+        {onOpenShare ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onOpenShare}
+            data-testid="project-share-btn"
+            aria-label="Share"
+          >
+            <Share2 className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Share</span>
+          </Button>
+        ) : null}
 
         <Button
           variant="secondary"

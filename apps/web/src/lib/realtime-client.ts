@@ -53,13 +53,13 @@ export async function createRealtimeSession(
 
   onStatusChange(currentState);
 
-  const idb =
-    typeof indexedDB !== 'undefined'
-      ? new IndexeddbPersistence(`nova:project:${projectId}`, doc)
-      : null;
-
   const initialTicket = await apiClient.issueRealtimeTicket(projectId);
   let pendingToken: string | null = initialTicket.ticket;
+
+  let idb: IndexeddbPersistence | null =
+    typeof indexedDB !== 'undefined' && initialTicket.role !== 'VIEWER'
+      ? new IndexeddbPersistence(`nova:project:${projectId}`, doc)
+      : null;
 
   const socket = new HocuspocusProviderWebsocket({
     url: initialTicket.wsUrl,
@@ -105,6 +105,11 @@ export async function createRealtimeSession(
     },
     onAuthenticated: ({ scope }) => {
       if (!destroyed) {
+        if (scope === 'readonly' && idb) {
+          const staleIdb = idb;
+          idb = null;
+          void staleIdb.clearData().catch(() => staleIdb.destroy()).catch(() => {});
+        }
         onScopeChange?.(scope);
       }
     },
@@ -152,7 +157,9 @@ export async function createRealtimeSession(
     awareness: provider.awareness as unknown as AwarenessLike,
     provider,
     socket,
-    idb,
+    get idb() {
+      return idb;
+    },
     connect: () => {
       if (!destroyed && !manualOffline && !isBrowserOffline()) {
         void socket.connect();

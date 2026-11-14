@@ -1,5 +1,8 @@
 'use client';
 
+import { can as canPermission } from '@nova/shared';
+import { ProjectShareDialog } from '../../../components/ProjectShareDialog';
+
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -560,6 +563,8 @@ export default function ProjectEditorPage({
     [editor, insertAssetOnCanvas, projectId, pushToast, queryClient, readOnly],
   );
 
+  const [shareOpen, setShareOpen] = useState(false);
+
   if (meQuery.isPending || projectQuery.isPending) {
     return (
       <main className="h-screen w-screen bg-[var(--bg-app)] flex items-center justify-center text-[var(--text-secondary)]">
@@ -619,6 +624,7 @@ export default function ProjectEditorPage({
         onRenameProject={async (nextName) => {
           await renameProjectMutation.mutateAsync(nextName);
         }}
+        onOpenShare={() => setShareOpen(true)}
         onExportPng={handleExportPng}
       />
 
@@ -713,6 +719,15 @@ export default function ProjectEditorPage({
         zoom={viewport.zoom}
         nodeCount={nodes.length}
         selectedCount={selectedNodes.length}
+      />
+
+      <ProjectShareDialog
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        projectId={projectId}
+        projectName={project.name}
+        canManageMembers={canPermission(effectiveRole, 'workspace.manage_members')}
+        currentUserId={user?.id}
       />
     </div>
   );

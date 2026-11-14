@@ -9,19 +9,23 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import {
   CreateProjectSchema,
   CursorPaginationQuerySchema,
+  UpdateProjectMemberSchema,
   UpdateProjectSchema,
   type CreateProjectDto,
   type CursorPaginationQuery,
   type ProjectDetailResponse,
+  type ProjectMemberDto,
   type ProjectSummary,
   type RealtimeTicketResponse,
   type UpdateProjectDto,
+  type UpdateProjectMemberDto,
 } from '@nova/shared';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -92,5 +96,33 @@ export class ProjectsController {
     @Param('id') projectId: string,
   ): Promise<RealtimeTicketResponse> {
     return this.projects.issueRealtimeTicket(user.id, projectId);
+  }
+
+  @Get('projects/:id/members')
+  async listMembers(
+    @CurrentUser() user: AuthUser,
+    @Param('id') projectId: string,
+  ): Promise<ProjectMemberDto[]> {
+    return this.projects.listProjectMembers(user.id, projectId);
+  }
+
+  @Put('projects/:id/members/:userId')
+  async setMemberRole(
+    @CurrentUser() user: AuthUser,
+    @Param('id') projectId: string,
+    @Param('userId') targetUserId: string,
+    @Body(new ZodValidationPipe(UpdateProjectMemberSchema)) body: UpdateProjectMemberDto,
+  ): Promise<ProjectMemberDto> {
+    return this.projects.setProjectMemberRole(user.id, projectId, targetUserId, body);
+  }
+
+  @Delete('projects/:id/members/:userId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async clearMemberOverride(
+    @CurrentUser() user: AuthUser,
+    @Param('id') projectId: string,
+    @Param('userId') targetUserId: string,
+  ): Promise<void> {
+    await this.projects.removeProjectMemberOverride(user.id, projectId, targetUserId);
   }
 }

@@ -234,4 +234,160 @@ describe('Workspaces & Projects (e2e)', () => {
     expect(audit).not.toBeNull();
     expect(audit?.actorId).toBe(owner.userId);
   });
+
+  it('supports project-level member role overrides, LAST_OWNER guard, clearing overrides, and AuditLog', async () => {
+    const server = app.getHttpServer();
+    const owner = await registerUser('pm-owner');
+    const editor = await registerUser('pm-editor');
+    const viewer = await registerUser('pm-viewer');
+
+    const createWs = await request(server)
+      .post('/api/v1/workspaces')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ name: 'Override Studio' });
+    expect(createWs.status).toBe(201);
+    const workspaceId = createWs.body.workspace.id as string;
+    createdWorkspaceIds.push(workspaceId);
+
+    await prisma.workspaceMember.createMany({
+      data: [
+        { workspaceId, userId: editor.userId, role: 'EDITOR' },
+        { workspaceId, userId: viewer.userId, role: 'VIEWER' },
+      ],
+    });
+
+    const createProj = await request(server)
+      .post(`/api/v1/workspaces/${workspaceId}/projects`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ name: 'Override Deck' });
+    expect(createProj.status).toBe(201);
+    const projectId = createProj.body.project.id as string;
+
+    const initialList = await request(server)
+      .get(`/api/v1/projects/${projectId}/members`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(initialList.status).toBe(200);
+    const initialEditorRow = (initialList.body as Array<Record<string, unknown>>).find(
+      (m) => m.userId === editor.userId,
+    );
+    expect(initialEditorRow).toMatchObject({
+      userId: editor.userId,
+      workspaceRole: 'EDITOR',
+      overrideRole: null,
+      effectiveRole: 'EDITOR',
+    });
+
+    // EDITOR cannot modify project member overrides
+    const forbiddenPut = await request(server)
+      .put(`/api/v1/projects/${projectId}/members/${viewer.userId}`)
+      .set('Authorization', `Bearer ${editor.token}`)
+      .send({ role: 'EDITOR' });
+    expect(forbiddenPut.status).toBe(403);
+
+    // Sole workspace OWNER cannot be overridden down from OWNER
+    const lastOwnerPut = await request(server)
+      .put(`/api/v1/projects/${projectId}/members/${owner.userId}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ role: 'VIEWER' });
+    expect(lastOwnerPut.status).toBe(409);
+    expect(lastOwnerPut.body.error.code).toBe('LAST_OWNER');
+
+    // OWNER downgrades workspace EDITOR -> project VIEWER
+    const downgradeRes = await request(server)
+      .put(`/api/v1/projects/${projectId}/members/${editor.userId}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ role: 'VIEWER' });
+    expect(downgradeRes.status).toBe(200);
+    expect(downgradeRes.body).toMatchObject({
+      userId: editor.userId,
+      workspaceRole: 'EDITOR',
+      overrideRole: 'VIEWER',
+      effectiveRole: 'VIEWER',
+    });
+
+    const updatedList = await request(server)
+      .get(`/api/v1/projects/${projectId}/members`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(updatedList.status).toBe(200);
+    expect(
+      (updatedList.body as Array<Record<string, unknown>>).find((m) => m.userId === editor.userId),
+    ).toMatchObject({
+      workspaceRole: 'EDITOR',
+      overrideRole: 'VIEWER',
+      effectiveRole: 'VIEWER',
+    });
+
+    const detailAsViewer = await request(server)
+      .get(`/api/v1/projects/${projectId}`)
+      .set('Authorization', `Bearer ${editor.token}`);
+    expect(detailAsViewer.status).toBe(200);
+    expect(detailAsViewer.body.role).toBe('VIEWER');
+
+    const patchAsViewer = await request(server)
+      .patch(`/api/v1/projects/${projectId}`)
+      .set('Authorization', `Bearer ${editor.token}`)
+      .send({ name: 'Should Fail' });
+    expect(patchAsViewer.status).toBe(403);
+
+    const ticketAsViewer = await request(server)
+      .post(`/api/v1/projects/${projectId}/realtime-ticket`)
+      .set('Authorization', `Bearer ${editor.token}`);
+    expect(ticketAsViewer.status).toBe(200);
+    expect(ticketAsViewer.body.role).toBe('VIEWER');
+
+    const updateAudit = await prisma.auditLog.findFirst({
+      where: {
+        workspaceId,
+        action: 'project.member_override_updated',
+        targetId: `${projectId}:${editor.userId}`,
+      },
+    });
+    expect(updateAudit).not.toBeNull();
+
+    // Clearing via DELETE restores workspace EDITOR role
+    const clearDelete = await request(server)
+      .delete(`/api/v1/projects/${projectId}/members/${editor.userId}`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(clearDelete.status).toBe(204);
+
+    const patchRestored = await request(server)
+      .patch(`/api/v1/projects/${projectId}`)
+      .set('Authorization', `Bearer ${editor.token}`)
+      .send({ name: 'Restored Editor Deck' });
+    expect(patchRestored.status).toBe(200);
+
+    const ticketRestored = await request(server)
+      .post(`/api/v1/projects/${projectId}/realtime-ticket`)
+      .set('Authorization', `Bearer ${editor.token}`);
+    expect(ticketRestored.status).toBe(200);
+    expect(ticketRestored.body.role).toBe('EDITOR');
+
+    const clearAudit = await prisma.auditLog.findFirst({
+      where: {
+        workspaceId,
+        action: 'project.member_override_cleared',
+        targetId: `${projectId}:${editor.userId}`,
+      },
+    });
+    expect(clearAudit).not.toBeNull();
+
+    // Clearing via PUT { role: null } works symmetrically on promoted VIEWER
+    const promoteRes = await request(server)
+      .put(`/api/v1/projects/${projectId}/members/${viewer.userId}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ role: 'EDITOR' });
+    expect(promoteRes.status).toBe(200);
+    expect(promoteRes.body.effectiveRole).toBe('EDITOR');
+
+    const clearPut = await request(server)
+      .put(`/api/v1/projects/${projectId}/members/${viewer.userId}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ role: null });
+    expect(clearPut.status).toBe(200);
+    expect(clearPut.body).toMatchObject({
+      workspaceRole: 'VIEWER',
+      overrideRole: null,
+      effectiveRole: 'VIEWER',
+    });
+  });
 });

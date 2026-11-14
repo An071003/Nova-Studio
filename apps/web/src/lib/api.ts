@@ -10,11 +10,13 @@ import type {
   LoginDto,
   MeResponse,
   ProjectDetailResponse,
+  ProjectMemberDto,
   ProjectSummary,
   RealtimeTicketResponse,
   RegisterDto,
   UpdateMemberRoleDto,
   UpdateProjectDto,
+  UpdateProjectMemberDto,
   UpdateWorkspaceDto,
   UploadUrlResponse,
   WorkspaceMemberDto,
@@ -343,6 +345,34 @@ export class NovaApiClient {
     return this.request<RealtimeTicketResponse>(
       `/projects/${encodeURIComponent(projectId)}/realtime-ticket`,
       { method: 'POST' },
+    );
+  }
+
+  async listProjectMembers(projectId: string): Promise<ProjectMemberDto[]> {
+    return this.request<ProjectMemberDto[]>(
+      `/projects/${encodeURIComponent(projectId)}/members`,
+      { method: 'GET' },
+    );
+  }
+
+  async setProjectMemberRole(
+    projectId: string,
+    userId: string,
+    dto: UpdateProjectMemberDto,
+  ): Promise<ProjectMemberDto> {
+    return this.request<ProjectMemberDto>(
+      `/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(userId)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(dto),
+      },
+    );
+  }
+
+  async clearProjectMemberOverride(projectId: string, userId: string): Promise<void> {
+    return this.request<void>(
+      `/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(userId)}`,
+      { method: 'DELETE' },
     );
   }
 
