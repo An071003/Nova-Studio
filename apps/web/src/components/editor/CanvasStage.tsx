@@ -1,15 +1,19 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { Maximize2, Upload, ZoomIn, ZoomOut } from 'lucide-react';
 import type { Editor, EditorKeyEvent } from '@nova/editor-core';
-import type { KonvaRenderer } from '@nova/editor-konva';
+import type { AssetUrlResolver, KonvaRenderer } from '@nova/editor-konva';
+import type { AssetDto, Point } from '@nova/shared';
 
 export interface CanvasStageProps {
   editor: Editor;
   zoom: number;
   readOnly: boolean;
   onRendererReady: (renderer: KonvaRenderer | null) => void;
+  resolveAssetUrl?: AssetUrlResolver;
+  onDropImageFile?: (file: File, worldPoint: Point) => void;
+  onDropProjectAsset?: (asset: AssetDto, worldPoint: Point) => void;
 }
 
 interface TextEditSession {
@@ -24,12 +28,23 @@ function isEditableElement(target: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
 }
 
-export function CanvasStage({ editor, zoom, readOnly, onRendererReady }: CanvasStageProps) {
+export function CanvasStage({
+  editor,
+  zoom,
+  readOnly,
+  onRendererReady,
+  resolveAssetUrl,
+  onDropImageFile,
+  onDropProjectAsset,
+}: CanvasStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onRendererReadyRef = useRef(onRendererReady);
   onRendererReadyRef.current = onRendererReady;
+  const resolveAssetUrlRef = useRef(resolveAssetUrl);
+  resolveAssetUrlRef.current = resolveAssetUrl;
 
   const [textEdit, setTextEdit] = useState<TextEditSession | null>(null);
+  const [isDragOverFile, setIsDragOverFile] = useState(false);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -41,6 +56,7 @@ export function CanvasStage({ editor, zoom, readOnly, onRendererReady }: CanvasS
     void import('@nova/editor-konva').then(({ KonvaRenderer }) => {
       if (cancelled || !containerRef.current) return;
       instance = new KonvaRenderer(editor, {
+        resolveAssetUrl: (assetId) => resolveAssetUrlRef.current?.(assetId) ?? null,
         onTextEditRequested: (node, screenRect) => {
           if (editor.commands.isReadOnly()) return;
           setTextEdit({
@@ -129,14 +145,89 @@ export function CanvasStage({ editor, zoom, readOnly, onRendererReady }: CanvasS
     });
   };
 
+  const toWorldPointFromDrop = (e: DragEvent<HTMLDivElement>): Point => {
+    const el = containerRef.current;
+    const rect = el?.getBoundingClientRect();
+    const hasCoords = e.clientX !== 0 || e.clientY !== 0;
+    const screenPt = rect
+      ? hasCoords
+        ? { x: e.clientX - rect.left, y: e.clientY - rect.top }
+        : { x: rect.width / 2, y: rect.height / 2 }
+      : { x: 240, y: 180 };
+    return editor.viewport.screenToWorld(screenPt);
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    if (readOnly) return;
+    const types = Array.from(e.dataTransfer?.types ?? []);
+    if (!types.includes('Files') && !types.includes('application/x-nova-asset')) {
+      return;
+    }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    if (!isDragOverFile) {
+      setIsDragOverFile(true);
+    }
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      setIsDragOverFile(false);
+    }
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    const types = Array.from(e.dataTransfer?.types ?? []);
+    const hasFiles = types.includes('Files') || (e.dataTransfer?.files?.length ?? 0) > 0;
+    if (!hasFiles && !types.includes('application/x-nova-asset')) {
+      return;
+    }
+    e.preventDefault();
+    setIsDragOverFile(false);
+    if (readOnly) return;
+
+    const worldPoint = toWorldPointFromDrop(e);
+    const assetJson = e.dataTransfer.getData('application/x-nova-asset');
+    if (assetJson) {
+      try {
+        const asset = JSON.parse(assetJson) as AssetDto;
+        onDropProjectAsset?.(asset, worldPoint);
+        return;
+      } catch {
+        // ignore invalid drag data
+      }
+    }
+
+    const files = Array.from(e.dataTransfer.files ?? []);
+    for (const file of files) {
+      onDropImageFile?.(file, worldPoint);
+    }
+  };
+
   return (
-    <div className="relative flex-1 min-w-0 min-h-0 bg-[var(--bg-canvas)] overflow-hidden select-none">
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className="relative flex-1 min-w-0 min-h-0 bg-[var(--bg-canvas)] overflow-hidden select-none"
+    >
       <div
         ref={containerRef}
         data-testid="canvas-stage"
         aria-label="Design canvas"
         className="absolute inset-0 w-full h-full touch-none"
       />
+      {isDragOverFile ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-3 z-30 rounded-[var(--radius-panel)] border-2 border-dashed border-[var(--accent)] bg-[var(--accent)]/10 flex items-center justify-center"
+        >
+          <div className="flex items-center gap-2 rounded-[var(--radius-panel)] bg-[var(--bg-panel)]/95 border border-[var(--border-strong)] px-4 py-2 text-[13px] font-medium text-[var(--text-primary)] shadow-lg">
+            <Upload className="w-4 h-4 text-[var(--accent)]" />
+            Drop image to place on canvas
+          </div>
+        </div>
+      ) : null}
 
       {/* Inline double-click text editing overlay */}
       {textEdit ? (

@@ -1,6 +1,9 @@
 import type {
+  AssetDto,
+  AssetUrlResponse,
   AuthResponse,
   CreateProjectDto,
+  CreateUploadUrlDto,
   CreateWorkspaceDto,
   LoginDto,
   MeResponse,
@@ -10,6 +13,7 @@ import type {
   RegisterDto,
   UpdateProjectDto,
   UpdateWorkspaceDto,
+  UploadUrlResponse,
   WorkspaceSummary,
 } from '@nova/shared';
 
@@ -287,6 +291,38 @@ export class NovaApiClient {
     return this.request<RealtimeTicketResponse>(
       `/projects/${encodeURIComponent(projectId)}/realtime-ticket`,
       { method: 'POST' },
+    );
+  }
+
+  async createAssetUploadUrl(
+    projectId: string,
+    dto: CreateUploadUrlDto,
+  ): Promise<UploadUrlResponse> {
+    return this.request<UploadUrlResponse>(
+      `/projects/${encodeURIComponent(projectId)}/assets/upload-url`,
+      {
+        method: 'POST',
+        body: JSON.stringify(dto),
+      },
+    );
+  }
+
+  async confirmAsset(assetId: string): Promise<{ asset: AssetDto }> {
+    return this.request<{ asset: AssetDto }>(
+      `/assets/${encodeURIComponent(assetId)}/confirm`,
+      { method: 'POST' },
+    );
+  }
+
+  async listProjectAssets(projectId: string): Promise<{ assets: AssetDto[] }> {
+    return this.request<{ assets: AssetDto[] }>(
+      `/projects/${encodeURIComponent(projectId)}/assets`,
+    );
+  }
+
+  async getAssetUrl(assetId: string): Promise<AssetUrlResponse> {
+    return this.request<AssetUrlResponse>(
+      `/assets/${encodeURIComponent(assetId)}/url`,
     );
   }
 }

@@ -7,10 +7,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { IndexeddbPersistence } from 'y-indexeddb';
 import * as Y from 'yjs';
 import {
+  ALLOWED_ASSET_MIME_TYPES,
   can,
   colorForUserId,
   DEFAULT_PAGE_ID,
+  MAX_ASSET_SIZE_BYTES,
+  type AllowedAssetMimeType,
+  type AssetDto,
   type CanvasNode,
+  type Point,
   type ToolId,
   type ViewportState,
 } from '@nova/shared';
@@ -104,11 +109,46 @@ export default function ProjectEditorPage({
     'local' | RealtimeConnectionState
   >('connecting');
   const [exporting, setExporting] = useState(false);
+  const [uploadingAsset, setUploadingAsset] = useState(false);
+  const assetUrlCacheRef = useRef(new Map<string, { url: string; expiresAt: number }>());
+  const inFlightAssetUrlsRef = useRef(new Map<string, Promise<string | null>>());
 
   const userId = user?.id;
   const userName = user?.name;
   const avatarUrl = user?.avatarUrl ?? undefined;
   const loadedProjectId = project?.id;
+
+  const assetsQuery = useQuery({
+    queryKey: ['project-assets', projectId],
+    queryFn: () => apiClient.listProjectAssets(projectId),
+    enabled: Boolean(loadedProjectId),
+  });
+
+  const resolveAssetUrl = useCallback(async (assetId: string): Promise<string | null> => {
+    const cached = assetUrlCacheRef.current.get(assetId);
+    if (cached && cached.expiresAt > Date.now() + 15_000) {
+      return cached.url;
+    }
+    const existingPromise = inFlightAssetUrlsRef.current.get(assetId);
+    if (existingPromise) {
+      return existingPromise;
+    }
+    const pending = apiClient
+      .getAssetUrl(assetId)
+      .then((res) => {
+        assetUrlCacheRef.current.set(assetId, {
+          url: res.url,
+          expiresAt: Date.now() + Math.max(30, res.expiresIn - 15) * 1000,
+        });
+        return res.url;
+      })
+      .catch(() => null)
+      .finally(() => {
+        inFlightAssetUrlsRef.current.delete(assetId);
+      });
+    inFlightAssetUrlsRef.current.set(assetId, pending);
+    return pending;
+  }, []);
   const initialReadOnlyRef = useRef(readOnly);
   initialReadOnlyRef.current = readOnly;
 
@@ -364,6 +404,107 @@ export default function ProjectEditorPage({
     }
   };
 
+  const insertAssetOnCanvas = useCallback(
+    (asset: AssetDto, worldPoint?: Point, label?: string) => {
+      if (!editor || readOnly) return;
+      const rawW = asset.width ?? 240;
+      const rawH = asset.height ?? 180;
+      const scale = Math.min(1, 360 / Math.max(1, rawW, rawH));
+      const width = Math.max(24, Math.round(rawW * scale));
+      const height = Math.max(24, Math.round(rawH * scale));
+
+      const targetCenter =
+        worldPoint ??
+        editor.viewport.screenToWorld({
+          x: (stageWrapperRef.current?.clientWidth || 1200) / 2,
+          y: (stageWrapperRef.current?.clientHeight || 800) / 2,
+        });
+
+      const res = editor.commands.execute({
+        type: 'createNode',
+        input: {
+          type: 'image',
+          assetId: asset.id,
+          name: label ? label.replace(/\.[^.]+$/, '') : 'Image',
+          x: Math.round(targetCenter.x - width / 2),
+          y: Math.round(targetCenter.y - height / 2),
+          width,
+          height,
+          fill: null,
+        },
+      });
+      if (res.createdIds[0]) {
+        editor.selection.set([res.createdIds[0]]);
+        editor.tools.setTool('select');
+      }
+    },
+    [editor, readOnly],
+  );
+
+  const uploadAndInsertAsset = useCallback(
+    async (file: File, worldPoint?: Point) => {
+      if (!editor || readOnly) {
+        pushToast({ title: 'Viewers cannot upload assets', tone: 'warning' });
+        return;
+      }
+
+      const inferredMime =
+        file.type || (file.name.toLowerCase().endsWith('.svg') ? 'image/svg+xml' : 'image/png');
+      if (!ALLOWED_ASSET_MIME_TYPES.includes(inferredMime as AllowedAssetMimeType)) {
+        pushToast({
+          title: `Unsupported image type "${inferredMime}". Use PNG, JPEG, WebP, GIF, or SVG.`,
+          tone: 'danger',
+        });
+        return;
+      }
+
+      if (file.size > MAX_ASSET_SIZE_BYTES) {
+        const sizeMb = Math.round((file.size / (1024 * 1024)) * 10) / 10;
+        pushToast({
+          title: `File (${sizeMb} MB) exceeds the 25 MB maximum upload limit`,
+          tone: 'danger',
+        });
+        return;
+      }
+
+      setUploadingAsset(true);
+      try {
+        const presign = await apiClient.createAssetUploadUrl(projectId, {
+          mimeType: inferredMime,
+          sizeBytes: file.size,
+          filename: file.name || 'image.png',
+        });
+
+        const putRes = await fetch(presign.putUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': inferredMime },
+          body: file,
+        });
+        if (!putRes.ok) {
+          throw new Error(`Object storage upload failed (${putRes.status})`);
+        }
+
+        const { asset } = await apiClient.confirmAsset(presign.assetId);
+        queryClient.setQueryData<{ assets: AssetDto[] }>(
+          ['project-assets', projectId],
+          (prev) => ({
+            assets: [asset, ...(prev?.assets ?? []).filter((a) => a.id !== asset.id)],
+          }),
+        );
+        insertAssetOnCanvas(asset, worldPoint, file.name);
+        pushToast({ title: `Uploaded ${file.name}`, tone: 'success' });
+      } catch (err) {
+        pushToast({
+          title: err instanceof Error ? err.message : 'Asset upload failed',
+          tone: 'danger',
+        });
+      } finally {
+        setUploadingAsset(false);
+      }
+    },
+    [editor, insertAssetOnCanvas, projectId, pushToast, queryClient, readOnly],
+  );
+
   if (meQuery.isPending || projectQuery.isPending) {
     return (
       <main className="h-screen w-screen bg-[var(--bg-app)] flex items-center justify-center text-[var(--text-secondary)]">
@@ -431,6 +572,8 @@ export default function ProjectEditorPage({
           nodes={nodes}
           selectedIds={selectedIds}
           readOnly={readOnly}
+          assets={assetsQuery.data?.assets ?? []}
+          uploadingAsset={uploadingAsset}
           onSelectNode={(id, additive) => {
             if (!editor) return;
             if (additive) {
@@ -455,6 +598,8 @@ export default function ProjectEditorPage({
             });
           }}
           onReorderNode={handleReorderNode}
+          onUploadAssetFile={(file) => void uploadAndInsertAsset(file)}
+          onInsertAsset={(asset) => insertAssetOnCanvas(asset)}
         />
 
         <main ref={stageWrapperRef} className="flex-1 min-w-0 min-h-0 flex">
@@ -464,6 +609,9 @@ export default function ProjectEditorPage({
               zoom={viewport.zoom}
               readOnly={readOnly}
               onRendererReady={handleRendererReady}
+              resolveAssetUrl={resolveAssetUrl}
+              onDropImageFile={(file, worldPoint) => void uploadAndInsertAsset(file, worldPoint)}
+              onDropProjectAsset={(asset, worldPoint) => insertAssetOnCanvas(asset, worldPoint)}
             />
           ) : (
             <div className="flex-1 bg-[var(--bg-canvas)] flex items-center justify-center text-[13px] text-[var(--text-secondary)]">

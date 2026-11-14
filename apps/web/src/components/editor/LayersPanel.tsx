@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type KeyboardEvent } from 'react';
+import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import {
   ChevronDown,
   ChevronUp,
@@ -12,22 +12,28 @@ import {
   Image as ImageIcon,
   Lock,
   Minus,
+  Plus,
   Square,
   Type,
   Unlock,
+  Upload,
 } from 'lucide-react';
-import type { CanvasNode, NodeType } from '@nova/shared';
-import { cn } from '@nova/ui';
+import type { AssetDto, CanvasNode, NodeType } from '@nova/shared';
+import { Button, cn } from '@nova/ui';
 
 export interface LayersPanelProps {
   nodes: CanvasNode[];
   selectedIds: string[];
   readOnly: boolean;
+  assets?: AssetDto[];
+  uploadingAsset?: boolean;
   onSelectNode: (id: string, additive: boolean) => void;
   onRenameNode: (id: string, name: string) => void;
   onToggleVisible: (node: CanvasNode) => void;
   onToggleLocked: (node: CanvasNode) => void;
   onReorderNode: (nodeId: string, direction: 'forward' | 'backward') => void;
+  onUploadAssetFile?: (file: File) => void;
+  onInsertAsset?: (asset: AssetDto) => void;
 }
 
 type SidebarTab = 'layers' | 'assets';
@@ -57,15 +63,21 @@ export function LayersPanel({
   nodes,
   selectedIds,
   readOnly,
+  assets = [],
+  uploadingAsset = false,
   onSelectNode,
   onRenameNode,
   onToggleVisible,
   onToggleLocked,
   onReorderNode,
+  onUploadAssetFile,
+  onInsertAsset,
 }: LayersPanelProps) {
   const [activeTab, setActiveTab] = useState<SidebarTab>('layers');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
+  const [isDropzoneHover, setIsDropzoneHover] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedSet = new Set(selectedIds);
   // Display top-most visual layer first (scene graph order is back-to-front)
@@ -255,15 +267,111 @@ export function LayersPanel({
         role="tabpanel"
         aria-labelledby="tab-assets"
         hidden={activeTab !== 'assets'}
-        className="flex-1 min-h-0 overflow-y-auto p-3"
+        className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-3"
       >
-        <div className="rounded-[var(--radius-panel)] border border-dashed border-[var(--border-strong)] p-4 text-center">
-          <ImageIcon className="w-6 h-6 mx-auto mb-2 text-[var(--text-secondary)]" />
-          <p className="text-[12px] font-medium text-[var(--text-primary)]">Project Assets</p>
-          <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
-            Asset uploads (PNG, JPEG, WebP, SVG) and canvas drag-and-drop connect in P1-T15.
+        {!readOnly ? (
+          <div
+            onDragOver={(e: DragEvent<HTMLDivElement>) => {
+              if (!e.dataTransfer.types.includes('Files')) return;
+              e.preventDefault();
+              setIsDropzoneHover(true);
+            }}
+            onDragLeave={() => setIsDropzoneHover(false)}
+            onDrop={(e: DragEvent<HTMLDivElement>) => {
+              e.preventDefault();
+              setIsDropzoneHover(false);
+              const file = e.dataTransfer.files?.[0];
+              if (file) {
+                onUploadAssetFile?.(file);
+              }
+            }}
+            className={cn(
+              'rounded-[var(--radius-panel)] border border-dashed p-3 text-center transition-colors',
+              isDropzoneHover
+                ? 'border-[var(--accent)] bg-[var(--accent)]/10'
+                : 'border-[var(--border-strong)] bg-[var(--bg-app)]/50',
+            )}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              data-testid="asset-file-input"
+              aria-label="Upload image asset"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+              className="sr-only"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  onUploadAssetFile?.(file);
+                }
+                e.target.value = '';
+              }}
+            />
+            <Upload className="w-5 h-5 mx-auto mb-1.5 text-[var(--text-secondary)]" />
+            <p className="text-[12px] font-medium text-[var(--text-primary)]">Project Assets</p>
+            <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
+              PNG, JPEG, WebP, GIF or SVG up to 25 MB.
+            </p>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={uploadingAsset}
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-2.5 w-full"
+            >
+              {uploadingAsset ? 'Uploading…' : 'Upload image'}
+            </Button>
+          </div>
+        ) : null}
+
+        {assets.length === 0 ? (
+          <p className="text-[11px] text-[var(--text-secondary)] text-center py-2">
+            No ready assets yet. Drop an image onto the canvas or upload one above.
           </p>
-        </div>
+        ) : (
+          <ul role="list" aria-label="Uploaded project assets" className="flex flex-col gap-1.5">
+            {assets.map((asset) => {
+              const sizeKb = Math.max(1, Math.round(asset.sizeBytes / 1024));
+              return (
+                <li
+                  key={asset.id}
+                  data-testid={`asset-item-${asset.id}`}
+                  data-status={asset.status}
+                  draggable={!readOnly}
+                  onDragStart={(e) => {
+                    if (readOnly) return;
+                    e.dataTransfer.setData('application/x-nova-asset', JSON.stringify(asset));
+                    e.dataTransfer.effectAllowed = 'copy';
+                  }}
+                  className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--bg-app)] p-2 text-[11px]"
+                >
+                  <div className="min-w-0 flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 shrink-0 text-[var(--accent)]" aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p className="truncate font-mono text-[11px] text-[var(--text-primary)]">
+                        {asset.width ?? '?'}×{asset.height ?? '?'}
+                      </p>
+                      <p className="truncate text-[10px] text-[var(--text-secondary)]">
+                        {asset.mimeType.replace('image/', '').toUpperCase()} · {sizeKb} KB
+                      </p>
+                    </div>
+                  </div>
+                  {!readOnly ? (
+                    <button
+                      type="button"
+                      aria-label={`Insert asset ${asset.id} on canvas`}
+                      onClick={() => onInsertAsset?.(asset)}
+                      className="h-6 px-2 inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-[var(--border)] text-[11px] text-[var(--text-primary)] hover:border-[var(--accent)] cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add
+                    </button>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
     </aside>
   );

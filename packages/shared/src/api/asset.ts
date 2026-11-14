@@ -12,6 +12,17 @@ export type AllowedAssetMimeType = (typeof ALLOWED_ASSET_MIME_TYPES)[number];
 
 export const MAX_ASSET_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
 
+export const ASSET_PROCESS_QUEUE = 'asset-process';
+
+export const AssetProcessJobSchema = z.object({
+  assetId: z.string().min(1),
+  projectId: z.string().min(1),
+  key: z.string().min(1),
+  mimeType: z.string().min(1),
+});
+
+export type AssetProcessJob = z.infer<typeof AssetProcessJobSchema>;
+
 export const AssetStatusSchema = z.enum(['PENDING', 'READY', 'FAILED']);
 export type AssetStatus = z.infer<typeof AssetStatusSchema>;
 

@@ -10,3 +10,4 @@ export * from './api/version.js';
 export * from './api/asset.js';
 export * from './api/export.js';
 export * from './doc/node.js';
+export * from './svg-sanitize.js';

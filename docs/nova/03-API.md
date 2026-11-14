@@ -46,6 +46,7 @@ Mọi body/query validate bằng Zod schema trong `packages/shared/src/api/*`. P
 ## Assets
 | Method | Path | Quyền |
 |---|---|---|
+| GET | /projects/:id/assets | VIEWER+ → `{assets[]}` (READY) |
 | POST | /projects/:id/assets/upload-url `{mimeType,sizeBytes,filename}` | EDITOR+ → `{assetId, putUrl, expiresIn}` |
 | POST | /assets/:assetId/confirm | EDITOR+ → verify object, enqueue `asset.process` (sharp: dimension, thumbnail webp) |
 | GET | /assets/:assetId/url | VIEWER+ → presigned GET (10 phút) |
