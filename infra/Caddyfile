@@ -9,6 +9,10 @@
 		reverse_proxy realtime:4001
 	}
 
+	handle /nova-assets/* {
+		reverse_proxy minio:9000
+	}
+
 	handle {
 		reverse_proxy web:3000
 	}
