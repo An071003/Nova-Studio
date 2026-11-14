@@ -1,7 +1,10 @@
 {
-  "extends": "../config/tsconfig.esm.json",
+  "extends": "../config/tsconfig.react.json",
   "compilerOptions": {
-    "lib": ["ES2022", "DOM"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
     "outDir": "dist/esm",
     "rootDir": "src"
   },

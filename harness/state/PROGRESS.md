@@ -7,9 +7,11 @@
 - M2 — Production: NOT_STARTED
 
 ## Current task
-- ID: P1-T12 · Status: DONE · Completed: 2026-11-14
-- Goal: Implement full Dashboard CRUD: workspace switcher + create/rename workspace, `<search>` filter, "+ New design" dialog, 16:10 project grid with rename, duplicate, and delete confirmation dialogs, plus Playwright CRUD E2E & screenshot.
-- Evidence: `pwsh harness/probes/probe.ps1 -Scope web` PASS 6/6 (`vitest` 3/3, Playwright `auth.spec.ts` + `dashboard.spec.ts` 2/2 passed) & `pnpm --filter web build` PASS; screenshot `harness/evals/screenshots/p1-t12-dashboard.png`.
+- ID: P1-T14 · Status: IN_PROGRESS · Started: 2026-11-14
+- Goal: Connect `/project/[id]` to `apps/realtime` via `@hocuspocus/provider` + `y-indexeddb` + 30Hz awareness cursors/selections + TopBar online collaborators + live `StatusBar` states + `remoteNodeDeleted` toast; verify Eval E1–E4 with multi-user Playwright.
+- Files touched: `apps/web/{package.json,playwright.config.ts,src/app/project/[id]/page.tsx,src/components/editor/**,e2e/evals/**}`, `apps/realtime/src/index.ts` (start entrypoint check), `apps/api/test/**` or rate-limit test config if needed.
+- Risks: Ticket expiration on reconnect (`onAuthenticationFailed`), IndexedDB cleanup across tabs/reloads, auth rate limiter during multi-user E2E runs.
+- Probe plan: `pwsh harness/probes/probe.ps1 -Scope e2e` running `E1–E4` Playwright specs against live `api` + `realtime` + `web`.
 
 ## Blockers
 _(không có)_
@@ -29,8 +31,8 @@ _(không có)_
 | P1-T10 | DONE | 2026-11-14 | `probe -Scope api` PASS 6/6 (unit 9/9, e2e 8/8 incl. role matrix + override + 404 deleted/non-member + 60s HS256 claims) & `probe -Scope realtime` PASS 5/5 |
 | P1-T11 | DONE | 2026-11-14 | `probe -Scope web` PASS 6/6 (`@nova/ui` 3/3, `web` unit 3/3, `next build` ok, Playwright `auth.spec.ts` 1/1 + screenshots) |
 | P1-T12 | DONE | 2026-11-14 | `probe -Scope web` PASS 6/6 (Playwright `auth` + `dashboard` CRUD 2/2 + `next build` PASS + screenshot) |
-| P1-T13 | TODO | | |
-| P1-T14 | TODO | | |
+| P1-T13 | DONE | 2026-11-14 | `probe -Scope web` PASS 6/6 (`editor-konva` 3/3 incl. 500-node <16.6ms bench, `web` unit 3/3, `next build` ok, Playwright `auth+dashboard+editor` 3/3 + PNG export + screenshot) |
+| P1-T14 | IN_PROGRESS | 2026-11-14 | |
 | P1-T15 | TODO | | |
 | P1-T16 | TODO | | |
 | M1-GATE | TODO | | |
@@ -62,3 +64,4 @@ Status hợp lệ: `TODO | IN_PROGRESS | BLOCKED | REVIEW | DONE`.
 | 2026-11-14 | P1-T10 | 0 CONTRAST rounds: Extracted `RealtimeTicketClaimsSchema` to `@nova/shared` so `apps/api` and `apps/realtime` share one Zod schema; added `POST /api/v1/projects/:id/realtime-ticket` (`@HttpCode(200)`) checking `project.realtime_connect`. `probe -Scope api` PASS 6/6 (unit 9/9, e2e 8/8) + `probe -Scope realtime` PASS 5/5. |
 | 2026-11-14 | P1-T11 | 1 CONTRAST round: Fixed ESM `__dirname` (`fileURLToPath`) in `playwright.config.ts` & `auth.spec.ts`; added `@source` to `globals.css` for Tailwind v4 scanning `@nova/ui/src`. Built `packages/ui` + Next.js App Router (`/login`, `/register`, `/dashboard`), single-flight refresh-on-401 `NovaApiClient`, and Playwright E2E + screenshots (`probe -Scope web` PASS 6/6). |
 | 2026-11-14 | P1-T12 | 1 CONTRAST round: Caught permission key mismatch (`project.edit` -> `project.update`) via `typecheck` & Playwright `dashboard.spec.ts`; verified full workspace/project CRUD, `<search>` filter, duplicate, delete dialog, and screenshot (`probe -Scope web` PASS 6/6, `2/2` E2E). |
+| 2026-11-14 | P1-T13 | 1 CONTRAST round: Fixed Konva `Bundler` tsconfig & `/^konva$/ -> konva/lib/index.js` Vitest alias (L-010) and `fontStyle` bold normalization in `konva-shapes.ts`; built `@nova/editor-konva` (`3/3` tests incl. 500-node `<16.6ms`/frame bench) + 5-region `/project/[id]` studio editor + Playwright `editor.spec.ts` (`3/3` E2E, PNG export, screenshot verified). |
