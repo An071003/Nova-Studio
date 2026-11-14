@@ -1,7 +1,26 @@
 'use client';
 
-import { can as canPermission } from '@nova/shared';
+import { can as canPermission, type VersionPreview } from '@nova/shared';
 import { ProjectShareDialog } from '../../../components/ProjectShareDialog';
+import { VersionHistoryDialog } from '../../../components/editor/VersionHistoryDialog';
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -198,6 +217,9 @@ export default function ProjectEditorPage({
             try {
               const parsed = JSON.parse(payload) as { type?: string; role?: Role | null };
               if (parsed.type === 'version.restored') {
+                instance?.history.clear();
+                previewClearRef.current();
+                void queryClient.invalidateQueries({ queryKey: ['project-versions', loadedProjectId] });
                 pushToastRef.current({
                   title: 'Project restored to another version',
                   tone: 'info',
@@ -564,6 +586,104 @@ export default function ProjectEditorPage({
   );
 
   const [shareOpen, setShareOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [previewSession, setPreviewSession] = useState<{
+    id: string;
+    label: string;
+    createdAt: string;
+    editor: Editor;
+    doc: Y.Doc;
+    nodes: CanvasNode[];
+  } | null>(null);
+  const [confirmBannerRestore, setConfirmBannerRestore] = useState(false);
+  const [restoringFromBanner, setRestoringFromBanner] = useState(false);
+
+  const previewSessionRef = useRef(previewSession);
+  previewSessionRef.current = previewSession;
+
+  const clearPreview = useCallback(() => {
+    setConfirmBannerRestore(false);
+    setPreviewSession((prev) => {
+      if (prev) {
+        prev.editor.destroy();
+        prev.doc.destroy();
+      }
+      return null;
+    });
+  }, []);
+
+  const previewClearRef = useRef(clearPreview);
+  previewClearRef.current = clearPreview;
+
+  useEffect(() => {
+    return () => {
+      const current = previewSessionRef.current;
+      if (current) {
+        current.editor.destroy();
+        current.doc.destroy();
+      }
+    };
+  }, []);
+
+  const startVersionPreview = useCallback(
+    (preview: VersionPreview) => {
+      const pDoc = new Y.Doc();
+      Y.applyUpdate(pDoc, base64ToBytes(preview.stateBase64));
+      const pEditor = new Editor({
+        doc: pDoc,
+        userId: user?.id ?? 'preview',
+        readOnly: true,
+        getViewportSize: () => ({
+          width: stageWrapperRef.current?.clientWidth || 1200,
+          height: stageWrapperRef.current?.clientHeight || 800,
+        }),
+      });
+      const pNodes = pEditor.scene.getAllNodes(DEFAULT_PAGE_ID);
+      setConfirmBannerRestore(false);
+      setPreviewSession((prev) => {
+        if (prev) {
+          prev.editor.destroy();
+          prev.doc.destroy();
+        }
+        return {
+          id: preview.id,
+          label: preview.label,
+          createdAt: preview.createdAt,
+          editor: pEditor,
+          doc: pDoc,
+          nodes: pNodes,
+        };
+      });
+    },
+    [user?.id],
+  );
+
+  const handleRestoreFromBanner = useCallback(async () => {
+    if (!previewSession) return;
+    setRestoringFromBanner(true);
+    try {
+      const currentStateBase64 = editor ? bytesToBase64(Y.encodeStateAsUpdate(editor.doc)) : undefined;
+      const { version } = await apiClient.restoreProjectVersion(projectId, previewSession.id, {
+        ...(currentStateBase64 ? { currentStateBase64 } : {}),
+      });
+      editor?.history.clear();
+      clearPreview();
+      await queryClient.invalidateQueries({ queryKey: ['project-versions', projectId] });
+      pushToast({
+        title: `Restored to "${version.label}"`,
+        description: 'Previous state saved automatically as "Before restore".',
+        tone: 'success',
+      });
+    } catch (err) {
+      pushToast({
+        title: 'Restore failed',
+        description: err instanceof Error ? err.message : 'Unable to restore version.',
+        tone: 'danger',
+      });
+    } finally {
+      setRestoringFromBanner(false);
+    }
+  }, [clearPreview, editor, previewSession, projectId, pushToast, queryClient]);
 
   if (meQuery.isPending || projectQuery.isPending) {
     return (
@@ -595,17 +715,22 @@ export default function ProjectEditorPage({
     );
   }
 
+  const isPreviewing = Boolean(previewSession);
+  const activeEditor = previewSession ? previewSession.editor : editor;
+  const effectiveReadOnly = readOnly || isPreviewing;
+  const displayedNodes = previewSession ? previewSession.nodes : nodes;
+
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)]">
       <TopBar
         projectName={project.name}
         role={effectiveRole}
-        readOnly={readOnly}
+        readOnly={effectiveReadOnly}
         canRenameProject={canRenameProject}
         activeTool={activeTool}
-        canUndo={historyState.canUndo}
-        canRedo={historyState.canRedo}
-        hasSelection={selectedIds.length > 0}
+        canUndo={isPreviewing ? false : historyState.canUndo}
+        canRedo={isPreviewing ? false : historyState.canRedo}
+        hasSelection={isPreviewing ? false : selectedIds.length > 0}
         exporting={exporting}
         currentUser={
           user
@@ -613,11 +738,15 @@ export default function ProjectEditorPage({
             : null
         }
         remotePresences={remotePresences}
-        onSelectTool={(tool) => editor?.tools.setTool(tool)}
-        onUndo={() => editor?.history.undo()}
-        onRedo={() => editor?.history.redo()}
+        onSelectTool={(tool) => activeEditor?.tools.setTool(tool)}
+        onUndo={() => {
+          if (!isPreviewing) editor?.history.undo();
+        }}
+        onRedo={() => {
+          if (!isPreviewing) editor?.history.redo();
+        }}
         onDeleteSelection={() => {
-          if (!editor || readOnly || selectedIds.length === 0) return;
+          if (!editor || effectiveReadOnly || selectedIds.length === 0) return;
           editor.commands.execute({ type: 'deleteNodes', ids: selectedIds });
           editor.selection.clear();
         }}
@@ -625,18 +754,77 @@ export default function ProjectEditorPage({
           await renameProjectMutation.mutateAsync(nextName);
         }}
         onOpenShare={() => setShareOpen(true)}
+        onOpenVersions={() => setVersionsOpen((v) => !v)}
         onExportPng={handleExportPng}
       />
 
+      {previewSession ? (
+        <div
+          role="status"
+          data-testid="version-preview-banner"
+          className="h-10 shrink-0 px-4 bg-[var(--accent)]/15 border-b border-[var(--accent)]/40 flex items-center justify-between gap-3 text-[12px]"
+        >
+          <span className="font-medium text-[var(--text-primary)] truncate">
+            Previewing version &ldquo;{previewSession.label}&rdquo; (read-only)
+          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              data-testid="exit-version-preview-btn"
+              onClick={clearPreview}
+            >
+              Exit preview
+            </Button>
+            {canPermission(effectiveRole, 'version.restore') ? (
+              confirmBannerRestore ? (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={restoringFromBanner}
+                    onClick={() => setConfirmBannerRestore(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="primary"
+                    loading={restoringFromBanner}
+                    data-testid="restore-previewed-version-confirm-btn"
+                    onClick={() => void handleRestoreFromBanner()}
+                  >
+                    Confirm restore
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  data-testid="restore-previewed-version-btn"
+                  onClick={() => setConfirmBannerRestore(true)}
+                >
+                  Restore this version
+                </Button>
+              )
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex-1 min-h-0 flex">
         <LayersPanel
-          nodes={nodes}
-          selectedIds={selectedIds}
-          readOnly={readOnly}
+          nodes={displayedNodes}
+          selectedIds={isPreviewing ? [] : selectedIds}
+          readOnly={effectiveReadOnly}
           assets={assetsQuery.data?.assets ?? []}
           uploadingAsset={uploadingAsset}
           onSelectNode={(id, additive) => {
-            if (!editor) return;
+            if (!editor || isPreviewing) return;
             if (additive) {
               editor.selection.toggle(id);
             } else {
@@ -665,11 +853,11 @@ export default function ProjectEditorPage({
         />
 
         <main ref={stageWrapperRef} className="flex-1 min-w-0 min-h-0 flex">
-          {editor ? (
+          {activeEditor ? (
             <CanvasStage
-              editor={editor}
+              editor={activeEditor}
               zoom={viewport.zoom}
-              readOnly={readOnly}
+              readOnly={effectiveReadOnly}
               onRendererReady={handleRendererReady}
               resolveAssetUrl={resolveAssetUrl}
               onDropImageFile={(file, worldPoint) => void uploadAndInsertAsset(file, worldPoint)}
@@ -683,10 +871,10 @@ export default function ProjectEditorPage({
         </main>
 
         <PropertiesPanel
-          selectedNodes={selectedNodes}
-          allNodes={nodes}
+          selectedNodes={isPreviewing ? [] : selectedNodes}
+          allNodes={displayedNodes}
           viewport={viewport}
-          readOnly={readOnly}
+          readOnly={effectiveReadOnly}
           onUpdateNodes={(patches) => editor?.commands.execute({ type: 'updateNodes', patches })}
           onSetText={(nodeId, text) => editor?.commands.execute({ type: 'setText', nodeId, text })}
           onAlign={(mode) => {
@@ -715,10 +903,10 @@ export default function ProjectEditorPage({
       <StatusBar
         connectionState={connectionState}
         activeTool={activeTool}
-        readOnly={readOnly}
+        readOnly={effectiveReadOnly}
         zoom={viewport.zoom}
-        nodeCount={nodes.length}
-        selectedCount={selectedNodes.length}
+        nodeCount={displayedNodes.length}
+        selectedCount={isPreviewing ? 0 : selectedNodes.length}
       />
 
       <ProjectShareDialog
@@ -728,6 +916,21 @@ export default function ProjectEditorPage({
         projectName={project.name}
         canManageMembers={canPermission(effectiveRole, 'workspace.manage_members')}
         currentUserId={user?.id}
+      />
+
+      <VersionHistoryDialog
+        open={versionsOpen}
+        onClose={() => setVersionsOpen(false)}
+        projectId={projectId}
+        canCreateVersion={canPermission(effectiveRole, 'version.create')}
+        canRestoreVersion={canPermission(effectiveRole, 'version.restore')}
+        activePreviewVersionId={previewSession?.id ?? null}
+        getEncodedDocState={() => (editor ? bytesToBase64(Y.encodeStateAsUpdate(editor.doc)) : null)}
+        onPreviewVersion={startVersionPreview}
+        onVersionRestored={() => {
+          editor?.history.clear();
+          clearPreview();
+        }}
       />
     </div>
   );

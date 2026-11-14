@@ -5,6 +5,7 @@ import type {
   CreateInviteDto,
   CreateProjectDto,
   CreateUploadUrlDto,
+  CreateVersionDto,
   CreateWorkspaceDto,
   InviteResponse,
   LoginDto,
@@ -14,11 +15,15 @@ import type {
   ProjectSummary,
   RealtimeTicketResponse,
   RegisterDto,
+  RestoreVersionBodyDto,
+  RestoreVersionResponse,
   UpdateMemberRoleDto,
   UpdateProjectDto,
   UpdateProjectMemberDto,
   UpdateWorkspaceDto,
   UploadUrlResponse,
+  VersionPreview,
+  VersionSummary,
   WorkspaceMemberDto,
   WorkspaceSummary,
 } from '@nova/shared';
@@ -405,6 +410,47 @@ export class NovaApiClient {
   async getAssetUrl(assetId: string): Promise<AssetUrlResponse> {
     return this.request<AssetUrlResponse>(
       `/assets/${encodeURIComponent(assetId)}/url`,
+    );
+  }
+
+  async listProjectVersions(projectId: string): Promise<{ versions: VersionSummary[] }> {
+    return this.request<{ versions: VersionSummary[] }>(
+      `/projects/${encodeURIComponent(projectId)}/versions`,
+      { method: 'GET' },
+    );
+  }
+
+  async createProjectVersion(
+    projectId: string,
+    dto: CreateVersionDto,
+  ): Promise<{ version: VersionSummary }> {
+    return this.request<{ version: VersionSummary }>(
+      `/projects/${encodeURIComponent(projectId)}/versions`,
+      {
+        method: 'POST',
+        body: JSON.stringify(dto),
+      },
+    );
+  }
+
+  async getVersionPreview(projectId: string, versionId: string): Promise<VersionPreview> {
+    return this.request<VersionPreview>(
+      `/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}/preview`,
+      { method: 'GET' },
+    );
+  }
+
+  async restoreProjectVersion(
+    projectId: string,
+    versionId: string,
+    body?: RestoreVersionBodyDto,
+  ): Promise<RestoreVersionResponse> {
+    return this.request<RestoreVersionResponse>(
+      `/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}/restore`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body ?? {}),
+      },
     );
   }
 }

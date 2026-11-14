@@ -1,7 +1,14 @@
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import { ERROR_CODES, MAX_ASSET_SIZE_BYTES, NovaError } from '@nova/shared';
-import { processAssetImage, thumbnailKeyForAsset } from './index.js';
+import {
+  DEFAULT_MAX_AUTO_VERSIONS,
+  processAssetImage,
+  runAutoVersionSweep,
+  thumbnailKeyForAsset,
+  type AutoVersionCandidateProject,
+  type AutoVersionStore,
+} from './index.js';
 
 describe('worker asset processor', () => {
   it('extracts PNG dimensions and generates a WebP thumbnail', async () => {
@@ -60,5 +67,126 @@ describe('worker asset processor', () => {
     }
     expect(captured).toBeInstanceOf(NovaError);
     expect((captured as NovaError).code).toBe(ERROR_CODES.ASSET_TOO_LARGE);
+  });
+});
+
+describe('worker auto-version sweep', () => {
+  it('creates Auto snapshot when doc changed, skips unchanged state, and prunes beyond maxAutoVersions', async () => {
+    interface StoredVersion {
+      id: string;
+      projectId: string;
+      label: string;
+      state: Uint8Array;
+      createdAt: Date;
+      isAuto: boolean;
+    }
+
+    const baseTime = Date.now() - 60_000;
+    const versions: StoredVersion[] = [
+      {
+        id: 'ver-1',
+        projectId: 'proj-changed',
+        label: 'Old auto 1',
+        state: Uint8Array.from([1, 2, 3]),
+        createdAt: new Date(baseTime - 30_000),
+        isAuto: true,
+      },
+      {
+        id: 'ver-2',
+        projectId: 'proj-changed',
+        label: 'Old auto 2',
+        state: Uint8Array.from([1, 2, 4]),
+        createdAt: new Date(baseTime - 20_000),
+        isAuto: true,
+      },
+      {
+        id: 'ver-unchanged',
+        projectId: 'proj-same',
+        label: 'Current',
+        state: Uint8Array.from([9, 9, 9]),
+        createdAt: new Date(baseTime - 10_000),
+        isAuto: false,
+      },
+    ];
+
+    const projects: AutoVersionCandidateProject[] = [
+      {
+        id: 'proj-changed',
+        createdById: 'user-owner',
+        document: {
+          state: Uint8Array.from([1, 2, 5]),
+          updatedAt: new Date(baseTime),
+        },
+      },
+      {
+        id: 'proj-same',
+        createdById: 'user-owner',
+        document: {
+          state: Uint8Array.from([9, 9, 9]),
+          updatedAt: new Date(baseTime),
+        },
+      },
+      {
+        id: 'proj-first',
+        createdById: 'user-owner',
+        document: {
+          state: Uint8Array.from([7, 7]),
+          updatedAt: new Date(baseTime),
+        },
+      },
+    ];
+
+    let seq = 3;
+    const store: AutoVersionStore = {
+      findActiveProjectsWithDocuments: async () => projects,
+      findLatestVersion: async (projectId) => {
+        const sorted = versions
+          .filter((v) => v.projectId === projectId)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        return sorted[0] ?? null;
+      },
+      createAutoVersion: async (input) => {
+        const id = `ver-${seq++}`;
+        versions.push({
+          id,
+          projectId: input.projectId,
+          label: input.label,
+          state: input.state,
+          createdAt: new Date(baseTime + seq * 100),
+          isAuto: true,
+        });
+        return { id };
+      },
+      pruneAutoVersions: async (projectId, keepCount) => {
+        const autos = versions
+          .filter((v) => v.projectId === projectId && v.isAuto)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        const staleIds = new Set(autos.slice(keepCount).map((v) => v.id));
+        if (staleIds.size === 0) return 0;
+        for (let i = versions.length - 1; i >= 0; i -= 1) {
+          if (staleIds.has(versions[i]!.id)) {
+            versions.splice(i, 1);
+          }
+        }
+        return staleIds.size;
+      },
+    };
+
+    expect(DEFAULT_MAX_AUTO_VERSIONS).toBe(50);
+
+    const summary = await runAutoVersionSweep(store, { maxAutoVersions: 2 });
+    expect(summary).toEqual({
+      checkedProjects: 3,
+      createdCount: 2,
+      prunedCount: 1,
+    });
+
+    const changedAutos = versions.filter((v) => v.projectId === 'proj-changed' && v.isAuto);
+    expect(changedAutos).toHaveLength(2);
+    expect(changedAutos.some((v) => v.id === 'ver-1')).toBe(false);
+    expect(changedAutos.some((v) => v.label === 'Auto snapshot')).toBe(true);
+
+    expect(versions.filter((v) => v.projectId === 'proj-same')).toHaveLength(1);
+    expect(versions.filter((v) => v.projectId === 'proj-first')).toHaveLength(1);
   });
 });

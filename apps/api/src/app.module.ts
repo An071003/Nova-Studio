@@ -7,6 +7,7 @@ import { HealthController } from './health/health.controller';
 import { PermissionsModule } from './permissions/permission.service';
 import { PrismaModule } from './prisma/prisma.service';
 import { ProjectsModule } from './projects/projects.module';
+import { VersionsModule } from './versions/versions.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 
 @Module({
@@ -23,6 +24,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     AuthModule,
     WorkspacesModule,
     ProjectsModule,
+    VersionsModule,
     AssetsModule,
   ],
   controllers: [HealthController],

@@ -29,7 +29,7 @@ export interface OnlineCollaborator {
   isSelf?: boolean;
 }
 
-import { Share2 } from 'lucide-react';
+import { History, Share2 } from 'lucide-react';
 
 export interface TopBarProps {
   projectName: string;
@@ -49,6 +49,7 @@ export interface TopBarProps {
   onDeleteSelection: () => void;
   onRenameProject: (nextName: string) => Promise<void>;
   onOpenShare?: () => void;
+  onOpenVersions?: () => void;
   onExportPng: () => void;
 }
 
@@ -93,6 +94,7 @@ export function TopBar({
   onDeleteSelection,
   onRenameProject,
   onOpenShare,
+  onOpenVersions,
   onExportPng,
 }: TopBarProps) {
   const [editingTitle, setEditingTitle] = useState(false);
@@ -288,6 +290,19 @@ export function TopBar({
         </Button>
 
         <div aria-hidden="true" className="w-px h-5 bg-[var(--border)] mx-1" />
+
+        {onOpenVersions ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onOpenVersions}
+            data-testid="version-history-btn"
+            aria-label="Version history"
+          >
+            <History className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>History</span>
+          </Button>
+        ) : null}
 
         {onOpenShare ? (
           <Button

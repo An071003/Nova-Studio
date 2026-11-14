@@ -8,3 +8,15 @@ export {
   thumbnailKeyForAsset,
   type AssetWorkerOptions,
 } from './asset-worker.js';
+export {
+  DEFAULT_AUTO_VERSION_INTERVAL_MS,
+  DEFAULT_MAX_AUTO_VERSIONS,
+  createAutoVersionWorker,
+  createPrismaAutoVersionStore,
+  runAutoVersionSweep,
+  type AutoVersionCandidateProject,
+  type AutoVersionLatestSnapshot,
+  type AutoVersionStore,
+  type AutoVersionSweepResult,
+  type AutoVersionWorkerOptions,
+} from './version-worker.js';
