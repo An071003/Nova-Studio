@@ -510,3 +510,252 @@ test.describe('P1-T14 Realtime Multiplayer Evals (E1-E4)', () => {
     }
   });
 });
+
+test.describe('P1-T20 Offline Merge, Follow User & Text Undo Evals (E9-E10)', () => {
+  test.beforeAll(() => {
+    fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+  });
+
+  test('E9: offline 3-shape edit on B merges cleanly with 2-shape edit on A + Follow User syncs viewport', async ({
+    browser,
+  }) => {
+    const harness = await createMultiplayerProject(browser, 'Eval-E9', ['OWNER', 'EDITOR']);
+    try {
+      const [userA, userB] = harness.sessions;
+
+      // Verify Follow User while both users are online
+      const followAvatar = userA!.page.getByTestId(`presence-avatar-${userB!.userId}`);
+      await expect(followAvatar).toBeVisible({ timeout: 15_000 });
+
+      await userB!.page.evaluate(() => {
+        window.__NOVA_EDITOR__?.editor.viewport.setState({ x: 240, y: 160, zoom: 1.5 });
+      });
+
+      await followAvatar.click();
+      await expect(userA!.page.getByTestId('following-user-banner')).toContainText(
+        userB!.account.name,
+      );
+      await expect
+        .poll(async () =>
+          userA!.page.evaluate(() => window.__NOVA_EDITOR__?.editor.viewport.getState()),
+        )
+        .toEqual({ x: 240, y: 160, zoom: 1.5 });
+
+      await userA!.page.getByTestId('stop-following-btn').click();
+      await expect(userA!.page.getByTestId('following-user-banner')).toBeHidden();
+
+      // Reset viewports for deterministic screenshot
+      await Promise.all([
+        userA!.page.evaluate(() => {
+          window.__NOVA_EDITOR__?.editor.viewport.setState({ x: 0, y: 0, zoom: 1 });
+        }),
+        userB!.page.evaluate(() => {
+          window.__NOVA_EDITOR__?.editor.viewport.setState({ x: 0, y: 0, zoom: 1 });
+        }),
+      ]);
+
+      // Create 5 baseline shapes on User A
+      const shapeIds = await userA!.page.evaluate(() => {
+        const ed = window.__NOVA_EDITOR__?.editor;
+        if (!ed) return [] as string[];
+        const ids: string[] = [];
+        for (let i = 0; i < 5; i += 1) {
+          const res = ed.commands.execute({
+            type: 'createNode',
+            input: {
+              type: 'rect',
+              name: `Shape ${i + 1}`,
+              x: 80 + i * 160,
+              y: 120,
+              width: 120,
+              height: 90,
+              fill: '#64748B',
+            },
+          });
+          if (res.createdIds[0]) ids.push(res.createdIds[0]);
+        }
+        return ids;
+      });
+      expect(shapeIds).toHaveLength(5);
+
+      // Confirm B sees all 5 baseline shapes
+      await expect
+        .poll(async () => userB!.page.evaluate(() => window.__nova?.scene().length ?? 0))
+        .toBe(5);
+
+      // User B goes offline
+      await userB!.context.setOffline(true);
+      await expect(userB!.page.getByTestId('connection-status')).toHaveAttribute(
+        'data-state',
+        'offline',
+        { timeout: 10_000 },
+      );
+
+      // B edits 3 shapes offline; A edits 2 other shapes online
+      await userB!.page.evaluate((ids) => {
+        const ed = window.__NOVA_EDITOR__?.editor;
+        if (!ed) return;
+        ed.commands.execute({
+          type: 'updateNodes',
+          patches: [
+            { id: ids[0]!, patch: { x: 80, y: 260, fill: '#10B981' } },
+            { id: ids[1]!, patch: { x: 240, y: 260, fill: '#10B981' } },
+            { id: ids[2]!, patch: { x: 400, y: 260, fill: '#10B981' } },
+          ],
+        });
+      }, shapeIds);
+
+      await userA!.page.evaluate((ids) => {
+        const ed = window.__NOVA_EDITOR__?.editor;
+        if (!ed) return;
+        ed.commands.execute({
+          type: 'updateNodes',
+          patches: [
+            { id: ids[3]!, patch: { x: 560, y: 340, fill: '#3B82F6' } },
+            { id: ids[4]!, patch: { x: 720, y: 340, fill: '#3B82F6' } },
+          ],
+        });
+      }, shapeIds);
+
+      // Restore User B online and wait for reconnect + merge
+      await userB!.context.setOffline(false);
+      await expect(userB!.page.getByTestId('connection-status')).toHaveAttribute(
+        'data-state',
+        'connected',
+        { timeout: 15_000 },
+      );
+
+      const expectedMerged = [
+        { id: shapeIds[0]!, x: 80, y: 260, fill: '#10B981' },
+        { id: shapeIds[1]!, x: 240, y: 260, fill: '#10B981' },
+        { id: shapeIds[2]!, x: 400, y: 260, fill: '#10B981' },
+        { id: shapeIds[3]!, x: 560, y: 340, fill: '#3B82F6' },
+        { id: shapeIds[4]!, x: 720, y: 340, fill: '#3B82F6' },
+      ];
+
+      const summarize = (nodes: CanvasNode[]) =>
+        shapeIds.map((id) => {
+          const n = nodes.find((item) => item.id === id);
+          return { id, x: n?.x ?? -1, y: n?.y ?? -1, fill: n?.fill ?? null };
+        });
+
+      await expect
+        .poll(async () =>
+          summarize(await userA!.page.evaluate(() => window.__nova?.scene() ?? [])),
+        )
+        .toEqual(expectedMerged);
+
+      await expect
+        .poll(async () =>
+          summarize(await userB!.page.evaluate(() => window.__nova?.scene() ?? [])),
+        )
+        .toEqual(expectedMerged);
+
+      await userA!.page.screenshot({ path: path.join(SCREENSHOT_DIR, 'E9.png') });
+    } finally {
+      await harness.closeAll();
+    }
+  });
+
+  test('E10: concurrent text edits keep both users chars and A undo reverts only A insertion', async ({
+    browser,
+  }) => {
+    const harness = await createMultiplayerProject(browser, 'Eval-E10', ['OWNER', 'EDITOR']);
+    try {
+      const [userA, userB] = harness.sessions;
+
+      const textId = await userA!.page.evaluate(() => {
+        const ed = window.__NOVA_EDITOR__?.editor;
+        if (!ed) return '';
+        const res = ed.commands.execute({
+          type: 'createNode',
+          input: {
+            type: 'text',
+            name: 'Collab Headline',
+            x: 160,
+            y: 180,
+            width: 480,
+            height: 72,
+            text: 'Hello',
+            fontSize: 32,
+            fill: '#F8FAFC',
+          },
+        });
+        // Separate node creation from subsequent typing undo boundary
+        ed.history.stopCapturing();
+        return res.createdIds[0] ?? '';
+      });
+      expect(textId).not.toBe('');
+
+      await expect
+        .poll(async () =>
+          userB!.page.evaluate(
+            (id) => window.__nova?.scene().find((n) => n.id === id)?.text,
+            textId,
+          ),
+        )
+        .toBe('Hello');
+
+      // Concurrent insertions by A (suffix) and B (prefix)
+      await Promise.all([
+        userA!.page.evaluate((id) => {
+          window.__NOVA_EDITOR__?.editor.commands.execute({
+            type: 'editText',
+            nodeId: id,
+            index: 5,
+            deleteCount: 0,
+            insertText: ' World',
+          });
+        }, textId),
+        userB!.page.evaluate((id) => {
+          window.__NOVA_EDITOR__?.editor.commands.execute({
+            type: 'editText',
+            nodeId: id,
+            index: 0,
+            deleteCount: 0,
+            insertText: 'NOVA: ',
+          });
+        }, textId),
+      ]);
+
+      await expect
+        .poll(async () => {
+          const [tA, tB] = await Promise.all([
+            userA!.page.evaluate(
+              (id) => window.__nova?.scene().find((n) => n.id === id)?.text,
+              textId,
+            ),
+            userB!.page.evaluate(
+              (id) => window.__nova?.scene().find((n) => n.id === id)?.text,
+              textId,
+            ),
+          ]);
+          return { tA, tB };
+        })
+        .toEqual({ tA: 'NOVA: Hello World', tB: 'NOVA: Hello World' });
+
+      // User A triggers Undo -> only A's " World" insertion is reverted; B's "NOVA: " remains
+      await userA!.page.getByRole('button', { name: 'Undo' }).click();
+
+      await expect
+        .poll(async () => {
+          const [tA, tB] = await Promise.all([
+            userA!.page.evaluate(
+              (id) => window.__nova?.scene().find((n) => n.id === id)?.text,
+              textId,
+            ),
+            userB!.page.evaluate(
+              (id) => window.__nova?.scene().find((n) => n.id === id)?.text,
+              textId,
+            ),
+          ]);
+          return { tA, tB };
+        })
+        .toEqual({ tA: 'NOVA: Hello', tB: 'NOVA: Hello' });
+
+      await userA!.page.screenshot({ path: path.join(SCREENSHOT_DIR, 'E10.png') });
+    } finally {
+      await harness.closeAll();
+    }
+  });
+});

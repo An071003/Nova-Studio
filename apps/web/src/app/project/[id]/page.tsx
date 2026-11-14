@@ -130,6 +130,10 @@ export default function ProjectEditorPage({
   const [historyState, setHistoryState] = useState<HistoryState>({ canUndo: false, canRedo: false });
   const [viewport, setViewport] = useState<ViewportState>({ x: 0, y: 0, zoom: 1 });
   const [remotePresences, setRemotePresences] = useState<RemotePresence[]>([]);
+  const [followingUserId, setFollowingUserId] = useState<string | null>(null);
+  const followingUserIdRef = useRef<string | null>(null);
+  followingUserIdRef.current = followingUserId;
+  const syncingFollowedViewportRef = useRef(false);
   const [connectionState, setConnectionState] = useState<
     'local' | RealtimeConnectionState
   >('connecting');
@@ -317,6 +321,9 @@ export default function ProjectEditorPage({
         }),
         instance.subscribe('viewport', (vp) => {
           setViewport(vp);
+          if (followingUserIdRef.current && !syncingFollowedViewportRef.current) {
+            setFollowingUserId(null);
+          }
         }),
         instance.subscribe('presence', (remotes) => {
           setRemotePresences([...remotes]);
@@ -362,6 +369,31 @@ export default function ProjectEditorPage({
       editor.setReadOnly(readOnly);
     }
   }, [editor, readOnly]);
+
+  useEffect(() => {
+    if (!followingUserId || !editor) return;
+    const target = remotePresences.find((r) => r.presence.user.id === followingUserId);
+    if (!target) {
+      setFollowingUserId(null);
+      pushToastRef.current({ title: 'Followed collaborator went offline', tone: 'info' });
+      return;
+    }
+    const remoteVp = target.presence.viewport;
+    if (!remoteVp) return;
+    const currentVp = editor.viewport.getState();
+    if (
+      currentVp.x !== remoteVp.x ||
+      currentVp.y !== remoteVp.y ||
+      currentVp.zoom !== remoteVp.zoom
+    ) {
+      syncingFollowedViewportRef.current = true;
+      try {
+        editor.viewport.setState(remoteVp);
+      } finally {
+        syncingFollowedViewportRef.current = false;
+      }
+    }
+  }, [editor, followingUserId, remotePresences]);
 
   const handleRendererReady = useCallback(
     (renderer: KonvaRenderer | null) => {
@@ -603,13 +635,13 @@ export default function ProjectEditorPage({
 
   const clearPreview = useCallback(() => {
     setConfirmBannerRestore(false);
-    setPreviewSession((prev) => {
-      if (prev) {
-        prev.editor.destroy();
-        prev.doc.destroy();
-      }
-      return null;
-    });
+    const prev = previewSessionRef.current;
+    previewSessionRef.current = null;
+    if (prev) {
+      prev.editor.destroy();
+      prev.doc.destroy();
+    }
+    setPreviewSession(null);
   }, []);
 
   const previewClearRef = useRef(clearPreview);
@@ -640,20 +672,21 @@ export default function ProjectEditorPage({
       });
       const pNodes = pEditor.scene.getAllNodes(DEFAULT_PAGE_ID);
       setConfirmBannerRestore(false);
-      setPreviewSession((prev) => {
-        if (prev) {
-          prev.editor.destroy();
-          prev.doc.destroy();
-        }
-        return {
-          id: preview.id,
-          label: preview.label,
-          createdAt: preview.createdAt,
-          editor: pEditor,
-          doc: pDoc,
-          nodes: pNodes,
-        };
-      });
+      const prev = previewSessionRef.current;
+      if (prev) {
+        prev.editor.destroy();
+        prev.doc.destroy();
+      }
+      const nextSession = {
+        id: preview.id,
+        label: preview.label,
+        createdAt: preview.createdAt,
+        editor: pEditor,
+        doc: pDoc,
+        nodes: pNodes,
+      };
+      previewSessionRef.current = nextSession;
+      setPreviewSession(nextSession);
     },
     [user?.id],
   );
@@ -719,6 +752,9 @@ export default function ProjectEditorPage({
   const activeEditor = previewSession ? previewSession.editor : editor;
   const effectiveReadOnly = readOnly || isPreviewing;
   const displayedNodes = previewSession ? previewSession.nodes : nodes;
+  const followedCollaborator = followingUserId
+    ? remotePresences.find((r) => r.presence.user.id === followingUserId)?.presence.user ?? null
+    : null;
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)]">
@@ -738,6 +774,10 @@ export default function ProjectEditorPage({
             : null
         }
         remotePresences={remotePresences}
+        followingUserId={followingUserId}
+        onToggleFollowUser={(targetUserId) => {
+          setFollowingUserId((prev) => (prev === targetUserId ? null : targetUserId));
+        }}
         onSelectTool={(tool) => activeEditor?.tools.setTool(tool)}
         onUndo={() => {
           if (!isPreviewing) editor?.history.undo();
@@ -757,6 +797,27 @@ export default function ProjectEditorPage({
         onOpenVersions={() => setVersionsOpen((v) => !v)}
         onExportPng={handleExportPng}
       />
+
+      {followedCollaborator ? (
+        <div
+          role="status"
+          data-testid="following-user-banner"
+          className="h-9 shrink-0 px-4 bg-[var(--bg-panel)] border-b border-[var(--accent)]/40 flex items-center justify-between gap-3 text-[12px]"
+        >
+          <span className="font-medium text-[var(--text-primary)] truncate">
+            Following {followedCollaborator.name}&apos;s viewport
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            data-testid="stop-following-btn"
+            onClick={() => setFollowingUserId(null)}
+          >
+            Stop following
+          </Button>
+        </div>
+      ) : null}
 
       {previewSession ? (
         <div

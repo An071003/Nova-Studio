@@ -55,6 +55,8 @@ export async function createRealtimeSession(
 
   const initialTicket = await apiClient.issueRealtimeTicket(projectId);
   let pendingToken: string | null = initialTicket.ticket;
+  let pendingTokenIssuedAt = Date.now();
+  const TICKET_REFRESH_INTERVAL_MS = 45_000;
 
   let idb: IndexeddbPersistence | null =
     typeof indexedDB !== 'undefined' && initialTicket.role !== 'VIEWER'
@@ -95,12 +97,14 @@ export async function createRealtimeSession(
     name: `project:${projectId}`,
     document: doc,
     token: async () => {
-      if (pendingToken) {
+      if (pendingToken && Date.now() - pendingTokenIssuedAt < TICKET_REFRESH_INTERVAL_MS) {
         const token = pendingToken;
         pendingToken = null;
         return token;
       }
+      pendingToken = null;
       const refreshed = await apiClient.issueRealtimeTicket(projectId);
+      pendingTokenIssuedAt = Date.now();
       return refreshed.ticket;
     },
     onAuthenticated: ({ scope }) => {
@@ -148,6 +152,26 @@ export async function createRealtimeSession(
     void socket.connect();
   };
 
+  const ticketRefreshTimer =
+    typeof window !== 'undefined'
+      ? window.setInterval(() => {
+          if (destroyed || manualOffline || isBrowserOffline() || currentState !== 'connected') {
+            return;
+          }
+          void apiClient
+            .issueRealtimeTicket(projectId)
+            .then((fresh) => {
+              if (!destroyed) {
+                pendingToken = fresh.ticket;
+                pendingTokenIssuedAt = Date.now();
+              }
+            })
+            .catch(() => {
+              // On-demand token() callback refreshes on reconnect if background refresh fails
+            });
+        }, TICKET_REFRESH_INTERVAL_MS)
+      : null;
+
   if (typeof window !== 'undefined') {
     window.addEventListener('offline', handleBrowserOffline);
     window.addEventListener('online', handleBrowserOnline);
@@ -168,6 +192,9 @@ export async function createRealtimeSession(
     destroy: async () => {
       if (destroyed) return;
       destroyed = true;
+      if (ticketRefreshTimer !== null && typeof window !== 'undefined') {
+        window.clearInterval(ticketRefreshTimer);
+      }
       if (typeof window !== 'undefined') {
         window.removeEventListener('offline', handleBrowserOffline);
         window.removeEventListener('online', handleBrowserOnline);

@@ -279,6 +279,9 @@ export function readNodeFromMap(nodeMap: Y.Map<unknown>): CanvasNode | null {
       raw[key] = value;
     }
   });
+  if (raw.id !== undefined && raw.updatedAt === undefined) {
+    raw.updatedAt = 0;
+  }
 
   const parsed = CanvasNodeSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;

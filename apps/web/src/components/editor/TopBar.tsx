@@ -43,6 +43,8 @@ export interface TopBarProps {
   exporting: boolean;
   currentUser: { id: string; name: string; color: string } | null;
   remotePresences: RemotePresence[];
+  followingUserId?: string | null;
+  onToggleFollowUser?: (userId: string) => void;
   onSelectTool: (tool: ToolId) => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -88,6 +90,8 @@ export function TopBar({
   exporting,
   currentUser,
   remotePresences,
+  followingUserId = null,
+  onToggleFollowUser,
   onSelectTool,
   onUndo,
   onRedo,
@@ -235,17 +239,42 @@ export function TopBar({
           aria-label="Online collaborators"
           className="hidden sm:flex items-center -space-x-1.5 mr-1"
         >
-          {collaborators.slice(0, 5).map((person) => (
-            <span
-              key={person.id}
-              data-testid={`presence-avatar-${person.id}`}
-              title={person.isSelf ? `${person.name} (You)` : person.name}
-              style={{ backgroundColor: person.color }}
-              className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold text-[var(--bg-app)] ring-2 ring-[var(--bg-panel)] select-none"
-            >
-              {getInitials(person.name)}
-            </span>
-          ))}
+          {collaborators.slice(0, 5).map((person) => {
+            const isFollowing = !person.isSelf && followingUserId === person.id;
+            if (!person.isSelf && onToggleFollowUser) {
+              return (
+                <button
+                  key={person.id}
+                  type="button"
+                  data-testid={`presence-avatar-${person.id}`}
+                  aria-label={isFollowing ? `Stop following ${person.name}` : `Follow ${person.name}`}
+                  aria-pressed={isFollowing}
+                  title={isFollowing ? `Following ${person.name} (click to stop)` : `Follow ${person.name}`}
+                  onClick={() => onToggleFollowUser(person.id)}
+                  style={{ backgroundColor: person.color }}
+                  className={cn(
+                    'inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold text-[var(--bg-app)] select-none transition-transform cursor-pointer',
+                    isFollowing
+                      ? 'ring-2 ring-[var(--accent)] scale-105 z-10'
+                      : 'ring-2 ring-[var(--bg-panel)] hover:scale-105',
+                  )}
+                >
+                  {getInitials(person.name)}
+                </button>
+              );
+            }
+            return (
+              <span
+                key={person.id}
+                data-testid={`presence-avatar-${person.id}`}
+                title={person.isSelf ? `${person.name} (You)` : person.name}
+                style={{ backgroundColor: person.color }}
+                className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold text-[var(--bg-app)] ring-2 ring-[var(--bg-panel)] select-none"
+              >
+                {getInitials(person.name)}
+              </span>
+            );
+          })}
           {collaborators.length > 5 ? (
             <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-semibold bg-[var(--bg-elevated)] text-[var(--text-primary)] ring-2 ring-[var(--bg-panel)]">
               +{collaborators.length - 5}

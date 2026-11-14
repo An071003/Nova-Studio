@@ -530,4 +530,61 @@ describe('editor-core Part 2: geometry, spatial index, snapping, tools, history,
     }, RESTORE_ORIGIN);
     expect(edA.history.canUndo()).toBe(false);
   });
+
+  it('concurrent editText undo reverts only local insertion regardless of clientID order', () => {
+    for (const [idA, idB] of [
+      [1, 2],
+      [2, 1],
+    ] as const) {
+      const docA = createInitialDoc({ clientId: idA });
+      const docB = new Y.Doc();
+      docB.clientID = idB;
+      Y.applyUpdate(docB, Y.encodeStateAsUpdate(docA), 'peer-sync');
+
+      const edA = new Editor({ doc: docA, userId: 'alice' });
+      const edB = new Editor({ doc: docB, userId: 'bob' });
+
+      const res = edA.commands.execute({
+        type: 'createNode',
+        input: { type: 'text', text: 'Hello' },
+      });
+      const textId = res.createdIds[0]!;
+      edA.history.stopCapturing();
+      Y.applyUpdate(docB, Y.encodeStateAsUpdate(docA), 'peer-sync');
+
+      edA.commands.execute({
+        type: 'editText',
+        nodeId: textId,
+        index: 5,
+        deleteCount: 0,
+        insertText: ' World',
+      });
+      edB.commands.execute({
+        type: 'editText',
+        nodeId: textId,
+        index: 0,
+        deleteCount: 0,
+        insertText: 'NOVA: ',
+      });
+
+      const uA = Y.encodeStateAsUpdate(docA);
+      const uB = Y.encodeStateAsUpdate(docB);
+      Y.applyUpdate(docA, uB, 'peer-sync');
+      Y.applyUpdate(docB, uA, 'peer-sync');
+
+      expect(edA.scene.getNode(textId)?.text).toBe('NOVA: Hello World');
+      expect(edB.scene.getNode(textId)?.text).toBe('NOVA: Hello World');
+
+      expect(edA.history.undo()).toBe(true);
+      Y.applyUpdate(docB, Y.encodeStateAsUpdate(docA), 'peer-sync');
+
+      expect(edA.scene.getNode(textId)?.text).toBe('NOVA: Hello');
+      expect(edB.scene.getNode(textId)?.text).toBe('NOVA: Hello');
+
+      edA.destroy();
+      edB.destroy();
+      docA.destroy();
+      docB.destroy();
+    }
+  });
 });

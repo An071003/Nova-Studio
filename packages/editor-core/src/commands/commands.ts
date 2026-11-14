@@ -511,8 +511,12 @@ export class CommandBus {
     if (!nodeMap) {
       return false;
     }
+    const hadTextType = nodeMap.get('text') instanceof Y.Text;
     this.writeTextField(nodeMap, text);
-    nodeMap.set('updatedAt', Date.now());
+    // Avoid touching nodeMap keys on pure Y.Text edits so concurrent text typing never conflicts on LWW updatedAt
+    if (!hadTextType) {
+      nodeMap.set('updatedAt', Date.now());
+    }
     return true;
   }
 
@@ -529,7 +533,8 @@ export class CommandBus {
     }
 
     let ytext = nodeMap.get('text');
-    if (!(ytext instanceof Y.Text)) {
+    const hadTextType = ytext instanceof Y.Text;
+    if (!hadTextType) {
       const created = new Y.Text();
       nodeMap.set('text', created);
       ytext = created;
@@ -544,7 +549,9 @@ export class CommandBus {
     if (insertText.length > 0) {
       textType.insert(clampedIndex, insertText);
     }
-    nodeMap.set('updatedAt', Date.now());
+    if (!hadTextType) {
+      nodeMap.set('updatedAt', Date.now());
+    }
     return true;
   }
 

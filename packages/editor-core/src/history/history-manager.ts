@@ -23,6 +23,22 @@ export class HistoryManager {
     this.undoManager = new Y.UndoManager([roots.nodes, roots.pages], {
       trackedOrigins: new Set([LOCAL_ORIGIN]),
       captureTimeout: 500,
+      deleteFilter: (item: Y.Item): boolean => {
+        // Prevent Y.UndoManager from deleting an active overwritten nodeMap key when a concurrent peer edit blocked redoItem
+        if (
+          item.parent instanceof Y.Map &&
+          item.parent !== roots.nodes &&
+          item.parent !== roots.pages &&
+          item.parentSub !== null &&
+          item.left !== null
+        ) {
+          const internalMap = (item.parent as unknown as { _map?: Map<string, Y.Item> })._map;
+          if (internalMap?.get(item.parentSub) === item) {
+            return false;
+          }
+        }
+        return true;
+      },
     });
 
     this.onStackChange = () => {
