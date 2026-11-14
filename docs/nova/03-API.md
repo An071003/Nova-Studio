@@ -33,7 +33,7 @@ Mọi body/query validate bằng Zod schema trong `packages/shared/src/api/*`. P
 | PATCH | /projects/:id `{name}` | EDITOR+ |
 | DELETE | /projects/:id | OWNER |
 | POST | /projects/:id/duplicate | EDITOR+ |
-| POST | /projects/:id/realtime-ticket | VIEWER+ → `{ticket, wsUrl}` |
+| POST | /projects/:id/realtime-ticket | VIEWER+ → `{ticket, wsUrl, role}` |
 
 ## Versions
 | Method | Path | Quyền |

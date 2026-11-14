@@ -20,6 +20,7 @@ import {
   type CursorPaginationQuery,
   type ProjectDetailResponse,
   type ProjectSummary,
+  type RealtimeTicketResponse,
   type UpdateProjectDto,
 } from '@nova/shared';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
@@ -82,5 +83,14 @@ export class ProjectsController {
     @Param('id') projectId: string,
   ): Promise<ProjectDetailResponse> {
     return this.projects.duplicate(user.id, projectId);
+  }
+
+  @Post('projects/:id/realtime-ticket')
+  @HttpCode(HttpStatus.OK)
+  async issueRealtimeTicket(
+    @CurrentUser() user: AuthUser,
+    @Param('id') projectId: string,
+  ): Promise<RealtimeTicketResponse> {
+    return this.projects.issueRealtimeTicket(user.id, projectId);
   }
 }

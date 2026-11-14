@@ -1,18 +1,11 @@
-import { RoleSchema, type Role } from '@nova/shared';
+import {
+  RealtimeTicketClaimsSchema,
+  type RealtimeTicketClaims,
+  type Role,
+} from '@nova/shared';
 import jwt from 'jsonwebtoken';
-import { z } from 'zod';
 
-export const RealtimeTicketClaimsSchema = z.object({
-  sub: z.string().min(1),
-  projectId: z.string().min(1),
-  role: RoleSchema,
-  name: z.string().min(1),
-  color: z.string().min(1),
-  avatarUrl: z.string().optional(),
-  type: z.literal('realtime'),
-});
-
-export type RealtimeTicketClaims = z.infer<typeof RealtimeTicketClaimsSchema>;
+export { RealtimeTicketClaimsSchema, type RealtimeTicketClaims };
 
 export interface RealtimeConnectionContext {
   userId: string;

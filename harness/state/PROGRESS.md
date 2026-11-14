@@ -7,9 +7,9 @@
 - M2 — Production: NOT_STARTED
 
 ## Current task
-- ID: P1-T09 · Status: DONE · Completed: 2026-11-14
-- Goal: Implement `apps/realtime` Hocuspocus server (`onAuthenticate` HS256 ticket, `VIEWER` `readOnly`, ≤ 1MB guard, Postgres `ProjectDocument` persistence, Redis `nova:restore:<projectId>` subscriber, `/health`).
-- Evidence: `probe.ps1 -Scope realtime` PASS 5/5 (4/4 tests in `src/index.test.ts` & `test/realtime.test.ts`: health, 2-client sync, viewer readOnly drop, 4 invalid ticket cases, >1MB close 1009, restart persistence, Redis pub/sub restore).
+- ID: P1-T10 · Status: DONE · Completed: 2026-11-14
+- Goal: Implement `POST /api/v1/projects/:id/realtime-ticket` in `apps/api` returning 60s HS256 realtime ticket (`sub`, `projectId`, `role`, `name`, `color`, `avatarUrl`, `type: 'realtime'`), `wsUrl`, and effective `role`, plus shared `RealtimeTicketClaimsSchema` in `@nova/shared`.
+- Evidence: `probe.ps1 -Scope api` PASS 6/6 (`test api unit`: 4 files / 9 tests; `test api e2e`: 4 files / 8 tests incl. `realtime-ticket.e2e-spec.ts`) and `probe.ps1 -Scope realtime` PASS 5/5 (4/4 tests).
 
 ## Blockers
 _(không có)_
@@ -26,7 +26,7 @@ _(không có)_
 | P1-T07 | DONE | 2026-11-14 | `probe -Scope editor-core` PASS 5/5 (13/13 tests incl. all 7 conflicts + 200-op 3-peer convergence; 88.94% stmts/lines coverage) |
 | P1-T08 | DONE | 2026-11-14 | `probe -Scope editor-core` PASS 5/5 (21/21 tests incl. 2-peer UndoManager + remoteNodeDeleted + tools FSM; 90.24% stmts/lines coverage) |
 | P1-T09 | DONE | 2026-11-14 | `probe -Scope realtime` PASS 5/5 (4/4 tests: health, 2-client sync, viewer readOnly, bad tickets, >1MB 1009, restart DB persist, Redis restore) |
-| P1-T10 | TODO | | |
+| P1-T10 | DONE | 2026-11-14 | `probe -Scope api` PASS 6/6 (unit 9/9, e2e 8/8 incl. role matrix + override + 404 deleted/non-member + 60s HS256 claims) & `probe -Scope realtime` PASS 5/5 |
 | P1-T11 | TODO | | |
 | P1-T12 | TODO | | |
 | P1-T13 | TODO | | |
@@ -59,3 +59,4 @@ Status hợp lệ: `TODO | IN_PROGRESS | BLOCKED | REVIEW | DONE`.
 | 2026-11-14 | P1-T07 | 1 CONTRAST round: Switched `@nova/editor-core` and `@nova/editor-konva` to ESM-only builds (`fractional-indexing@4`/`nanoid@6`/`rbush@4` are pure ESM), added fallback in `generateJitteredKeyBetween`, and set 30s timeout on slow V8-instrumented ESLint boundary tests. |
 | 2026-11-14 | P1-T08 | 3 CONTRAST rounds: Removed `zod` import in `clipboard.ts` (use `@nova/shared` schema), eliminated extra empty tx in `initializeDocIfEmpty`, and added `executeDiscrete` `stopCapturing()` around discrete tool gestures so `Delete -> Undo` isolates cleanly from coalesced edits. `probe -Scope editor-core` PASS 5/5 (21/21 tests, 90.24% coverage). |
 | 2026-11-14 | P1-T09 | 2 CONTRAST rounds: Added `provider.attach()` + `autoConnect: false` and `minDelay <= delay` on `HocuspocusProviderWebsocket` (documented in `LESSONS.md` `L-009`). Added `@hocuspocus/server` v4 `websocketOptions.maxPayload` + `beforeHandleMessage` 1MB guards, Postgres `"ProjectDocument"` upsert, and Redis `nova:restore:*` reconciliation. `probe -Scope realtime` PASS 5/5 (4/4 tests). |
+| 2026-11-14 | P1-T10 | 0 CONTRAST rounds: Extracted `RealtimeTicketClaimsSchema` to `@nova/shared` so `apps/api` and `apps/realtime` share one Zod schema; added `POST /api/v1/projects/:id/realtime-ticket` (`@HttpCode(200)`) checking `project.realtime_connect`. `probe -Scope api` PASS 6/6 (unit 9/9, e2e 8/8) + `probe -Scope realtime` PASS 5/5. |

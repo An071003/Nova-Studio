@@ -1,16 +1,22 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  colorForUserId,
   ERROR_CODES,
   NovaError,
+  RealtimeTicketClaimsSchema,
+  RealtimeTicketResponseSchema,
   type CreateProjectDto,
   type CursorPaginationQuery,
   type ProjectDetailResponse,
   type ProjectSummary,
+  type RealtimeTicketResponse,
   type Role,
   type UpdateProjectDto,
 } from '@nova/shared';
 import type { Project } from '@prisma/client';
+import jwt from 'jsonwebtoken';
 import * as Y from 'yjs';
+import { getApiEnv } from '../common/env';
 import { PermissionService } from '../permissions/permission.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -176,5 +182,43 @@ export class ProjectsService {
 
     const effective = await this.permissions.assertProject(userId, created.id, 'project.view');
     return { project: toProjectSummary(created), role: effective.role as Role };
+  }
+
+  async issueRealtimeTicket(userId: string, projectId: string): Promise<RealtimeTicketResponse> {
+    const { role } = await this.permissions.assertProject(
+      userId,
+      projectId,
+      'project.realtime_connect',
+    );
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, avatarUrl: true },
+    });
+    if (!user) {
+      throw new NovaError(ERROR_CODES.NOT_FOUND, 'User not found');
+    }
+
+    const env = getApiEnv();
+    const claims = RealtimeTicketClaimsSchema.parse({
+      sub: user.id,
+      projectId,
+      role,
+      name: user.name,
+      color: colorForUserId(user.id),
+      ...(user.avatarUrl ? { avatarUrl: user.avatarUrl } : {}),
+      type: 'realtime',
+    });
+
+    const ticket = jwt.sign(claims, env.realtimeJwtSecret, {
+      algorithm: 'HS256',
+      expiresIn: 60,
+    });
+
+    return RealtimeTicketResponseSchema.parse({
+      ticket,
+      wsUrl: env.realtimeUrl,
+      role,
+    });
   }
 }
