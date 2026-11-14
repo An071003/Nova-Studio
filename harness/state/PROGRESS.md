@@ -7,11 +7,11 @@
 - M2 — Production: IN_PROGRESS
 
 ## Current task
-- ID: P1-T23 · Status: IN_PROGRESS · Started: 2026-11-14
-- Goal: Implement performance benchmarks (`packages/editor-core/test/editor.bench.ts`) and Eval E12 (1,000 scene nodes load <= 2s + 10 concurrent Hocuspocus clients at 5 ops/s with p95 <= 150ms, 100% convergence, 0 errors, `E12.png`).
-- Files touched: `packages/editor-core/package.json`, `packages/editor-core/test/editor.bench.ts`, `apps/web/e2e/evals/perf.eval.spec.ts`.
-- Risks: Hocuspocus client burst coordination and keeping `p95 <= 150ms` under 10 concurrent clients on single dev machine.
-- Probe plan: `pwsh -NoProfile -File harness/probes/probe.ps1 -Scope perf`.
+- ID: P1-T24 · Status: IN_PROGRESS · Started: 2026-11-14
+- Goal: Add `.dockerignore`, multi-stage production Dockerfiles (`api`, `realtime`, `worker`, `web`), `infra/Caddyfile`, `infra/docker-compose.prod.yml`, `.github/workflows/ci.yml`, and verify `probe.ps1 -Scope deploy`.
+- Files touched: `.dockerignore`, `apps/{api,realtime,worker,web}/Dockerfile`, `infra/Caddyfile`, `infra/docker-compose.prod.yml`, `.github/workflows/ci.yml`.
+- Risks: Monorepo pnpm workspace build inside multi-stage Docker images, Prisma generate/migrate deploy, Next.js build args, Caddy WS upgrades, and gitleaks zero-leak compliance.
+- Probe plan: `pwsh -NoProfile -File harness/probes/probe.ps1 -Scope deploy` + `probe.ps1 -Scope security`.
 
 ## Blockers
 _(không có)_
@@ -42,8 +42,8 @@ _(không có)_
 | P1-T20 | DONE | 2026-11-14 | `probe -Scope editor-core` PASS (`22/22` tests, 89.92% coverage); `probe -Scope e2e` PASS 5/5 (`E1–E10` `10 passed (49.8s)` + `E9.png`/`E10.png`) |
 | P1-T21 | DONE | 2026-11-14 | `shared` `12/12`; `worker` `6/6`; `probe -Scope api` PASS 6/6 (`9/9` unit, `13/13` e2e incl. `exports.e2e-spec.ts`); `web e2e` smoke `4/4`; `probe -Scope e2e` PASS 5/5 (`11 passed (51.4s)` `E1–E11` + `E11.png`) |
 | P1-T22 | DONE | 2026-11-14 | probe security PASS (6 steps: lint, typecheck, guards, pnpm audit 0 vulns, gitleaks 0 leaks); probe api PASS (5 unit/10 tests, 8 e2e/13 tests); realtime 5 tests PASS; web build PASS |
-| P1-T23 | IN_PROGRESS | 2026-11-14 | |
-| P1-T24 | TODO | | |
+| P1-T23 | DONE | 2026-11-14 | probe perf PASS (editor-core 1k bench: create 6.98ms, rebuild 2.78ms, searchRect 0.0013ms, updateNodes 100 0.42ms; E12 PASS: 1k load 1699.0ms, 10 clients x 5 ops/s x 60s = 3000 ops p50=0.8ms p95=1.1ms max=7.7ms, 0 errors, 100% converged, E12.png); lint & typecheck 13/13 PASS |
+| P1-T24 | IN_PROGRESS | 2026-11-14 | |
 | P1-T25 | TODO | | |
 | M2-GATE | TODO | | |
 

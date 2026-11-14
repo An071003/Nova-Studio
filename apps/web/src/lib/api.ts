@@ -160,15 +160,23 @@ export class NovaApiClient {
       });
     };
 
+    let didProactiveRefresh = false;
+    if (!this.accessToken && !skipAuthRefresh) {
+      didProactiveRefresh = true;
+      await this.refreshAccessToken();
+    }
+
     let response = await runFetch(this.accessToken);
 
-    if (response.status === 401 && !skipAuthRefresh) {
+    if (response.status === 401 && !skipAuthRefresh && !didProactiveRefresh) {
       const nextToken = await this.refreshAccessToken();
       if (nextToken) {
         response = await runFetch(nextToken);
       } else {
         this.onUnauthenticated?.();
       }
+    } else if (response.status === 401 && !skipAuthRefresh && didProactiveRefresh) {
+      this.onUnauthenticated?.();
     }
 
     return response;

@@ -18,7 +18,7 @@
     "lint": "eslint src test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "bench": "vitest bench"
+    "bench": "vitest bench --run"
   },
   "dependencies": {
     "@nova/shared": "workspace:*",
