@@ -4,12 +4,30 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { IndexeddbPersistence } from 'y-indexeddb';
 import * as Y from 'yjs';
-import { can, DEFAULT_PAGE_ID, type CanvasNode, type ToolId, type ViewportState } from '@nova/shared';
-import { Editor, type HistoryState } from '@nova/editor-core';
+import {
+  can,
+  colorForUserId,
+  DEFAULT_PAGE_ID,
+  type CanvasNode,
+  type ToolId,
+  type ViewportState,
+} from '@nova/shared';
+import {
+  Editor,
+  type HistoryState,
+  type RemotePresence,
+  type SceneDiff,
+} from '@nova/editor-core';
 import type { KonvaRenderer } from '@nova/editor-konva';
 import { Button, useToast } from '@nova/ui';
 import { NovaApiError, apiClient } from '../../../lib/api';
+import {
+  createRealtimeSession,
+  type RealtimeConnectionState,
+  type RealtimeSession,
+} from '../../../lib/realtime-client';
 import { TopBar } from '../../../components/editor/TopBar';
 import { LayersPanel } from '../../../components/editor/LayersPanel';
 import { PropertiesPanel } from '../../../components/editor/PropertiesPanel';
@@ -22,9 +40,16 @@ export interface NovaEditorDebugHandle {
   doc: Y.Doc;
 }
 
+export interface NovaE2EHook {
+  scene: () => CanvasNode[];
+  presences: () => RemotePresence[];
+  on: (event: 'remoteUpdate', cb: (diff: SceneDiff) => void) => () => void;
+}
+
 declare global {
   interface Window {
     __NOVA_EDITOR__?: NovaEditorDebugHandle;
+    __nova?: NovaE2EHook;
   }
 }
 
@@ -37,6 +62,8 @@ export default function ProjectEditorPage({
   const router = useRouter();
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
+  const pushToastRef = useRef(pushToast);
+  pushToastRef.current = pushToast;
 
   const meQuery = useQuery({
     queryKey: ['me'],
@@ -72,73 +99,173 @@ export default function ProjectEditorPage({
   const [activeTool, setActiveTool] = useState<ToolId>('select');
   const [historyState, setHistoryState] = useState<HistoryState>({ canUndo: false, canRedo: false });
   const [viewport, setViewport] = useState<ViewportState>({ x: 0, y: 0, zoom: 1 });
+  const [remotePresences, setRemotePresences] = useState<RemotePresence[]>([]);
+  const [connectionState, setConnectionState] = useState<
+    'local' | RealtimeConnectionState
+  >('connecting');
   const [exporting, setExporting] = useState(false);
 
   const userId = user?.id;
   const userName = user?.name;
+  const avatarUrl = user?.avatarUrl ?? undefined;
   const loadedProjectId = project?.id;
   const initialReadOnlyRef = useRef(readOnly);
   initialReadOnlyRef.current = readOnly;
 
-  // Initialize headless Editor instance once authenticated user & project load
+  // Initialize Realtime session + IndexedDB + Editor once authenticated user & project load
   useEffect(() => {
     if (!userId || !loadedProjectId) return;
-    const instance = new Editor({
-      doc,
-      userId,
-      userName,
-      readOnly: initialReadOnlyRef.current,
-      pageId: DEFAULT_PAGE_ID,
-      getViewportSize: () => ({
-        width: stageWrapperRef.current?.clientWidth || 1200,
-        height: stageWrapperRef.current?.clientHeight || 800,
-      }),
-    });
 
-    setNodes([...instance.scene.getAllNodes(DEFAULT_PAGE_ID)]);
-    setSelectedIds(instance.selection.getIds());
-    setActiveTool(instance.tools.getActiveTool());
-    setHistoryState(instance.history.getState());
-    setViewport(instance.viewport.getState());
-    setEditor(instance);
+    let cancelled = false;
+    let instance: Editor | null = null;
+    let session: RealtimeSession | null = null;
+    let fallbackIdb: IndexeddbPersistence | null = null;
+    const unsubs: Array<() => void> = [];
 
-    window.__NOVA_EDITOR__ = {
-      editor: instance,
-      renderer: rendererRef.current,
-      doc,
+    const setup = async () => {
+      try {
+        session = await createRealtimeSession({
+          projectId: loadedProjectId,
+          doc,
+          onStatusChange: (next) => {
+            if (!cancelled) {
+              setConnectionState(next);
+            }
+          },
+          onScopeChange: (scope) => {
+            if (!cancelled && scope === 'readonly') {
+              instance?.setReadOnly(true);
+            }
+          },
+          onStatelessMessage: (payload) => {
+            if (cancelled) return;
+            try {
+              const parsed = JSON.parse(payload) as { type?: string };
+              if (parsed.type === 'version.restored') {
+                pushToastRef.current({
+                  title: 'Project restored to another version',
+                  tone: 'info',
+                });
+              }
+            } catch {
+              // ignore non-JSON stateless messages
+            }
+          },
+        });
+      } catch {
+        if (typeof indexedDB !== 'undefined') {
+          fallbackIdb = new IndexeddbPersistence(`nova:project:${loadedProjectId}`, doc);
+        }
+        if (!cancelled) {
+          setConnectionState(
+            typeof navigator !== 'undefined' && navigator.onLine === false ? 'offline' : 'local',
+          );
+        }
+      }
+
+      if (cancelled) {
+        await session?.destroy();
+        await fallbackIdb?.destroy().catch(() => {});
+        return;
+      }
+
+      const userColor = colorForUserId(userId);
+      instance = new Editor({
+        doc,
+        userId,
+        userName,
+        userColor,
+        avatarUrl,
+        awareness: session?.awareness,
+        readOnly: initialReadOnlyRef.current,
+        pageId: DEFAULT_PAGE_ID,
+        getViewportSize: () => ({
+          width: stageWrapperRef.current?.clientWidth || 1200,
+          height: stageWrapperRef.current?.clientHeight || 800,
+        }),
+      });
+
+      setNodes([...instance.scene.getAllNodes(DEFAULT_PAGE_ID)]);
+      setSelectedIds([...instance.selection.getIds()]);
+      setActiveTool(instance.tools.getActiveTool());
+      setHistoryState(instance.history.getState());
+      setViewport(instance.viewport.getState());
+      setRemotePresences(instance.presence.getRemotePresences());
+      setEditor(instance);
+
+      window.__NOVA_EDITOR__ = {
+        editor: instance,
+        renderer: rendererRef.current,
+        doc,
+      };
+      window.__nova = {
+        scene: () => instance?.scene.getAllNodes(DEFAULT_PAGE_ID) ?? [],
+        presences: () => instance?.presence.getRemotePresences() ?? [],
+        on: (event, cb) => {
+          if (event === 'remoteUpdate' && instance) {
+            return instance.subscribe('sceneDiff', ({ diff, isRemote }) => {
+              if (isRemote) {
+                cb(diff);
+              }
+            });
+          }
+          return () => {};
+        },
+      };
+
+      unsubs.push(
+        instance.subscribe('sceneDiff', () => {
+          if (!instance) return;
+          setNodes([...instance.scene.getAllNodes(DEFAULT_PAGE_ID)]);
+        }),
+        instance.subscribe('selection', (snap) => {
+          setSelectedIds([...snap.ids]);
+        }),
+        instance.subscribe('history', (state) => {
+          setHistoryState(state);
+        }),
+        instance.subscribe('viewport', (vp) => {
+          setViewport(vp);
+        }),
+        instance.subscribe('presence', (remotes) => {
+          setRemotePresences([...remotes]);
+        }),
+        instance.subscribe('remoteNodeDeleted', ({ ids }) => {
+          pushToastRef.current({
+            title:
+              ids.length > 1
+                ? `${ids.length} selected layers were deleted by a collaborator`
+                : 'Selected layer was deleted by a collaborator',
+            tone: 'warning',
+          });
+        }),
+        instance.tools.subscribeToolChange((tool) => {
+          setActiveTool(tool);
+        }),
+      );
+
+      session?.connect();
     };
 
-    const unsubs = [
-      instance.subscribe('sceneDiff', () => {
-        setNodes([...instance.scene.getAllNodes(DEFAULT_PAGE_ID)]);
-      }),
-      instance.subscribe('selection', (snap) => {
-        setSelectedIds([...snap.ids]);
-      }),
-      instance.subscribe('history', (state) => {
-        setHistoryState(state);
-      }),
-      instance.subscribe('viewport', (vp) => {
-        setViewport(vp);
-      }),
-      instance.tools.subscribeToolChange((tool) => {
-        setActiveTool(tool);
-      }),
-    ];
+    void setup();
 
     return () => {
+      cancelled = true;
       for (const unsub of unsubs) {
         unsub();
       }
       if (window.__NOVA_EDITOR__?.editor === instance) {
         delete window.__NOVA_EDITOR__;
       }
-      instance.destroy();
+      delete window.__nova;
+      instance?.destroy();
       setEditor(null);
+      setRemotePresences([]);
+      void session?.destroy();
+      void fallbackIdb?.destroy().catch(() => {});
     };
-  }, [doc, userId, userName, loadedProjectId]);
+  }, [doc, userId, userName, avatarUrl, loadedProjectId]);
 
-  // Keep readOnly synchronized if effective role updates without remounting
   useEffect(() => {
     if (editor) {
       editor.setReadOnly(readOnly);
@@ -279,6 +406,12 @@ export default function ProjectEditorPage({
         canRedo={historyState.canRedo}
         hasSelection={selectedIds.length > 0}
         exporting={exporting}
+        currentUser={
+          user
+            ? { id: user.id, name: user.name, color: colorForUserId(user.id) }
+            : null
+        }
+        remotePresences={remotePresences}
         onSelectTool={(tool) => editor?.tools.setTool(tool)}
         onUndo={() => editor?.history.undo()}
         onRedo={() => editor?.history.redo()}
@@ -370,7 +503,7 @@ export default function ProjectEditorPage({
       </div>
 
       <StatusBar
-        connectionState="local"
+        connectionState={connectionState}
         activeTool={activeTool}
         readOnly={readOnly}
         zoom={viewport.zoom}

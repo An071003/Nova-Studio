@@ -7,11 +7,10 @@
 - M2 — Production: NOT_STARTED
 
 ## Current task
-- ID: P1-T14 · Status: IN_PROGRESS · Started: 2026-11-14
+- ID: P1-T14 · Status: DONE · Completed: 2026-11-14
 - Goal: Connect `/project/[id]` to `apps/realtime` via `@hocuspocus/provider` + `y-indexeddb` + 30Hz awareness cursors/selections + TopBar online collaborators + live `StatusBar` states + `remoteNodeDeleted` toast; verify Eval E1–E4 with multi-user Playwright.
-- Files touched: `apps/web/{package.json,playwright.config.ts,src/app/project/[id]/page.tsx,src/components/editor/**,e2e/evals/**}`, `apps/realtime/src/index.ts` (start entrypoint check), `apps/api/test/**` or rate-limit test config if needed.
-- Risks: Ticket expiration on reconnect (`onAuthenticationFailed`), IndexedDB cleanup across tabs/reloads, auth rate limiter during multi-user E2E runs.
-- Probe plan: `pwsh harness/probes/probe.ps1 -Scope e2e` running `E1–E4` Playwright specs against live `api` + `realtime` + `web`.
+- Evidence: `pwsh -NoProfile -File harness/probes/probe.ps1 -Scope e2e` PASS (`5/5`, Playwright E1–E4 `4 passed (46.0s)` + `E1..E4.png`); `pnpm --filter api test:e2e` PASS (`4/4` files, `8/8` tests); `pnpm --filter web e2e` PASS (`3/3` smoke specs in `37.1s`).
+- Next: P1-T15 (Assets presigned upload, confirm, worker sharp dimension+thumbnail, drag-drop into canvas, Eval E5).
 
 ## Blockers
 _(không có)_
@@ -32,7 +31,7 @@ _(không có)_
 | P1-T11 | DONE | 2026-11-14 | `probe -Scope web` PASS 6/6 (`@nova/ui` 3/3, `web` unit 3/3, `next build` ok, Playwright `auth.spec.ts` 1/1 + screenshots) |
 | P1-T12 | DONE | 2026-11-14 | `probe -Scope web` PASS 6/6 (Playwright `auth` + `dashboard` CRUD 2/2 + `next build` PASS + screenshot) |
 | P1-T13 | DONE | 2026-11-14 | `probe -Scope web` PASS 6/6 (`editor-konva` 3/3 incl. 500-node <16.6ms bench, `web` unit 3/3, `next build` ok, Playwright `auth+dashboard+editor` 3/3 + PNG export + screenshot) |
-| P1-T14 | IN_PROGRESS | 2026-11-14 | |
+| P1-T14 | DONE | 2026-11-14 | `probe -Scope e2e` PASS 5/5 (`E1–E4` `4 passed (46.0s)`); `api test:e2e` PASS `8/8`; `web e2e` smoke PASS `3/3 (37.1s)` |
 | P1-T15 | TODO | | |
 | P1-T16 | TODO | | |
 | M1-GATE | TODO | | |
@@ -65,3 +64,4 @@ Status hợp lệ: `TODO | IN_PROGRESS | BLOCKED | REVIEW | DONE`.
 | 2026-11-14 | P1-T11 | 1 CONTRAST round: Fixed ESM `__dirname` (`fileURLToPath`) in `playwright.config.ts` & `auth.spec.ts`; added `@source` to `globals.css` for Tailwind v4 scanning `@nova/ui/src`. Built `packages/ui` + Next.js App Router (`/login`, `/register`, `/dashboard`), single-flight refresh-on-401 `NovaApiClient`, and Playwright E2E + screenshots (`probe -Scope web` PASS 6/6). |
 | 2026-11-14 | P1-T12 | 1 CONTRAST round: Caught permission key mismatch (`project.edit` -> `project.update`) via `typecheck` & Playwright `dashboard.spec.ts`; verified full workspace/project CRUD, `<search>` filter, duplicate, delete dialog, and screenshot (`probe -Scope web` PASS 6/6, `2/2` E2E). |
 | 2026-11-14 | P1-T13 | 1 CONTRAST round: Fixed Konva `Bundler` tsconfig & `/^konva$/ -> konva/lib/index.js` Vitest alias (L-010) and `fontStyle` bold normalization in `konva-shapes.ts`; built `@nova/editor-konva` (`3/3` tests incl. 500-node `<16.6ms`/frame bench) + 5-region `/project/[id]` studio editor + Playwright `editor.spec.ts` (`3/3` E2E, PNG export, screenshot verified). |
+| 2026-11-14 | P1-T14 | 1 CONTRAST round: Fixed `HocuspocusProviderWebsocket` `minDelay <= delay` & `provider.attach()` (L-009) and configurable `NOVA_E2E_THROTTLE_LIMIT` for multi-user E2E runs; implemented `y-indexeddb` + Hocuspocus client, 30Hz awareness cursors/selections, TopBar collaborators, `StatusBar`, and Eval E1–E4 (`probe -Scope e2e` PASS 5/5). |

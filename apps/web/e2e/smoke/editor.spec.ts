@@ -40,7 +40,7 @@ test.describe('P1-T13 Collaborative Canvas Editor', () => {
     const stage = page.getByTestId('canvas-stage');
     await expect(stage).toBeVisible();
     await page.waitForFunction(() => Boolean(window.__NOVA_EDITOR__?.renderer));
-    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-state', 'local');
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-state', 'connected');
 
     const box = await stage.boundingBox();
     expect(box).not.toBeNull();

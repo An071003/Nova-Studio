@@ -18,8 +18,16 @@ import {
   Undo2,
 } from 'lucide-react';
 import type { Role, ToolId } from '@nova/shared';
+import type { RemotePresence } from '@nova/editor-core';
 import { Badge, Button, cn } from '@nova/ui';
 import { NovaLogo } from '../NovaLogo';
+
+export interface OnlineCollaborator {
+  id: string;
+  name: string;
+  color: string;
+  isSelf?: boolean;
+}
 
 export interface TopBarProps {
   projectName: string;
@@ -31,12 +39,21 @@ export interface TopBarProps {
   canRedo: boolean;
   hasSelection: boolean;
   exporting: boolean;
+  currentUser: { id: string; name: string; color: string } | null;
+  remotePresences: RemotePresence[];
   onSelectTool: (tool: ToolId) => void;
   onUndo: () => void;
   onRedo: () => void;
   onDeleteSelection: () => void;
   onRenameProject: (nextName: string) => Promise<void>;
   onExportPng: () => void;
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return `${parts[0]![0] ?? ''}${parts[parts.length - 1]![0] ?? ''}`.toUpperCase();
 }
 
 const TOOL_ITEMS: Array<{
@@ -65,6 +82,8 @@ export function TopBar({
   canRedo,
   hasSelection,
   exporting,
+  currentUser,
+  remotePresences,
   onSelectTool,
   onUndo,
   onRedo,
@@ -75,6 +94,18 @@ export function TopBar({
   const [editingTitle, setEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState(projectName);
   const [savingTitle, setSavingTitle] = useState(false);
+
+  const collaborators: OnlineCollaborator[] = [];
+  const seenUserIds = new Set<string>();
+  for (const remote of remotePresences) {
+    const u = remote.presence.user;
+    if (seenUserIds.has(u.id)) continue;
+    seenUserIds.add(u.id);
+    collaborators.push({ id: u.id, name: u.name, color: u.color, isSelf: false });
+  }
+  if (currentUser && !seenUserIds.has(currentUser.id)) {
+    collaborators.push({ ...currentUser, isSelf: true });
+  }
 
   const handleTitleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -191,8 +222,31 @@ export function TopBar({
         })}
       </div>
 
-      {/* Right: Undo / Redo / Delete / Export */}
+      {/* Right: Online Presence / Undo / Redo / Delete / Export */}
       <div className="flex items-center gap-1.5">
+        <div
+          data-testid="presence-avatars"
+          aria-label="Online collaborators"
+          className="hidden sm:flex items-center -space-x-1.5 mr-1"
+        >
+          {collaborators.slice(0, 5).map((person) => (
+            <span
+              key={person.id}
+              data-testid={`presence-avatar-${person.id}`}
+              title={person.isSelf ? `${person.name} (You)` : person.name}
+              style={{ backgroundColor: person.color }}
+              className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold text-[var(--bg-app)] ring-2 ring-[var(--bg-panel)] select-none"
+            >
+              {getInitials(person.name)}
+            </span>
+          ))}
+          {collaborators.length > 5 ? (
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-semibold bg-[var(--bg-elevated)] text-[var(--text-primary)] ring-2 ring-[var(--bg-panel)]">
+              +{collaborators.length - 5}
+            </span>
+          ) : null}
+        </div>
+
         <Button
           variant="ghost"
           size="sm"

@@ -52,7 +52,7 @@ export class AuthController {
   constructor(@Inject(AuthService) private readonly auth: AuthService) {}
 
   @Post('auth/register')
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: Number(process.env.NOVA_E2E_THROTTLE_LIMIT ?? 10), ttl: 60_000 } })
   async register(
     @Body(new ZodValidationPipe(RegisterSchema)) dto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
@@ -64,7 +64,7 @@ export class AuthController {
 
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: Number(process.env.NOVA_E2E_THROTTLE_LIMIT ?? 10), ttl: 60_000 } })
   async login(
     @Body(new ZodValidationPipe(LoginSchema)) dto: LoginDto,
     @Res({ passthrough: true }) res: Response,

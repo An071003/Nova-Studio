@@ -14,6 +14,7 @@
     "e2e:evals": "playwright test --config playwright.config.ts e2e/evals"
   },
   "dependencies": {
+    "@hocuspocus/provider": "^4.8.0",
     "@nova/editor-core": "workspace:*",
     "@nova/editor-konva": "workspace:*",
     "@nova/shared": "workspace:*",
@@ -23,6 +24,7 @@
     "next": "^15.5.29",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "y-indexeddb": "^9.0.12",
     "yjs": "^13.6.33",
     "zustand": "^5.1.0"
   },
