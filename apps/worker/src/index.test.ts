@@ -309,4 +309,21 @@ describe('worker scene export and project thumbnails', () => {
     expect(thumbMeta.width).toBe(400);
     expect(thumbMeta.height).toBe(225);
   });
+
+  it('parses worker runtime config with defaults and explicit overrides', async () => {
+    const { getWorkerConfig } = await import('./config.js');
+    const cfg = getWorkerConfig({
+      databaseUrl: 'postgresql://user:pass@db:5432/nova',
+      redisUrl: 'redis://redis:6379',
+      s3Bucket: 'custom-bucket',
+      s3ForcePathStyle: false,
+      autoVersionIntervalMs: 60_000,
+    });
+    expect(cfg.databaseUrl).toBe('postgresql://user:pass@db:5432/nova');
+    expect(cfg.redisUrl).toBe('redis://redis:6379');
+    expect(cfg.s3Bucket).toBe('custom-bucket');
+    expect(cfg.s3ForcePathStyle).toBe(false);
+    expect(cfg.autoVersionIntervalMs).toBe(60_000);
+    expect(cfg.maxAutoVersions).toBe(50);
+  });
 });

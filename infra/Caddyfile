@@ -1,0 +1,15 @@
+:80 {
+	encode gzip zstd
+
+	handle /api/* {
+		reverse_proxy api:4000
+	}
+
+	handle /ws* {
+		reverse_proxy realtime:4001
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}

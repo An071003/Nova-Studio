@@ -2,6 +2,7 @@ import { SHARED_VERSION } from '@nova/shared';
 
 export const WORKER_SERVICE_VERSION = SHARED_VERSION;
 
+export { getWorkerConfig, type WorkerConfig } from './config.js';
 export { processAssetImage, type ProcessedAssetImage } from './image-processor.js';
 export {
   createAssetWorker,

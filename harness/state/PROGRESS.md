@@ -7,11 +7,11 @@
 - M2 — Production: IN_PROGRESS
 
 ## Current task
-- ID: P1-T24 · Status: IN_PROGRESS · Started: 2026-11-14
-- Goal: Add `.dockerignore`, multi-stage production Dockerfiles (`api`, `realtime`, `worker`, `web`), `infra/Caddyfile`, `infra/docker-compose.prod.yml`, `.github/workflows/ci.yml`, and verify `probe.ps1 -Scope deploy`.
-- Files touched: `.dockerignore`, `apps/{api,realtime,worker,web}/Dockerfile`, `infra/Caddyfile`, `infra/docker-compose.prod.yml`, `.github/workflows/ci.yml`.
-- Risks: Monorepo pnpm workspace build inside multi-stage Docker images, Prisma generate/migrate deploy, Next.js build args, Caddy WS upgrades, and gitleaks zero-leak compliance.
-- Probe plan: `pwsh -NoProfile -File harness/probes/probe.ps1 -Scope deploy` + `probe.ps1 -Scope security`.
+- ID: P1-T25 · Status: IN_PROGRESS · Started: 2026-11-14
+- Goal: Write root `README.md` (1-command setup, architecture, scripts, testing, prod deploy) and complete `docs/nova/10-DEPLOYMENT.md` production runbook (backup/restore, key rotation, rollback).
+- Files touched: `README.md`, `docs/nova/10-DEPLOYMENT.md`.
+- Risks: Keeping all documented commands, ports, env variables, and filenames strictly accurate to tested workspace config and gitleaks-clean.
+- Probe plan: `pwsh -NoProfile -File harness/probes/probe.ps1 -Scope security` (includes lint, typecheck, guards, audit, gitleaks).
 
 ## Blockers
 _(không có)_
@@ -43,8 +43,8 @@ _(không có)_
 | P1-T21 | DONE | 2026-11-14 | `shared` `12/12`; `worker` `6/6`; `probe -Scope api` PASS 6/6 (`9/9` unit, `13/13` e2e incl. `exports.e2e-spec.ts`); `web e2e` smoke `4/4`; `probe -Scope e2e` PASS 5/5 (`11 passed (51.4s)` `E1–E11` + `E11.png`) |
 | P1-T22 | DONE | 2026-11-14 | probe security PASS (6 steps: lint, typecheck, guards, pnpm audit 0 vulns, gitleaks 0 leaks); probe api PASS (5 unit/10 tests, 8 e2e/13 tests); realtime 5 tests PASS; web build PASS |
 | P1-T23 | DONE | 2026-11-14 | probe perf PASS (editor-core 1k bench: create 6.98ms, rebuild 2.78ms, searchRect 0.0013ms, updateNodes 100 0.42ms; E12 PASS: 1k load 1699.0ms, 10 clients x 5 ops/s x 60s = 3000 ops p50=0.8ms p95=1.1ms max=7.7ms, 0 errors, 100% converged, E12.png); lint & typecheck 13/13 PASS |
-| P1-T24 | IN_PROGRESS | 2026-11-14 | |
-| P1-T25 | TODO | | |
+| P1-T24 | DONE | 2026-11-14 | probe deploy PASS (8/8 prod containers up, 7 healthchecked healthy, Caddy :80 /api/v1/health {"status":"ok","checks":{"db":"up","redis":"up","s3":"up"}}, auth register + /me smoke PASS); worker 7 tests PASS; probe security PASS (6 steps, 0 leaks) |
+| P1-T25 | IN_PROGRESS | 2026-11-14 | |
 | M2-GATE | TODO | | |
 
 Status hợp lệ: `TODO | IN_PROGRESS | BLOCKED | REVIEW | DONE`.
