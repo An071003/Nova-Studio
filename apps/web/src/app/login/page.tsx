@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import { LoginSchema } from '@nova/shared';
 import { Button, Card, Input, PasswordInput } from '@nova/ui';
 import { NovaLogo } from '../../components/NovaLogo';
 import { NovaApiError, apiClient } from '../../lib/api';
+import { buildAuthHref, resolveSafeNextPath } from '../../lib/safe-next';
 
 interface LoginFieldErrors {
   email?: string;
@@ -18,6 +19,7 @@ export default function LoginPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const [nextPath, setNextPath] = useState('/dashboard');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [touched, setTouched] = useState<{ email: boolean; password: boolean }>({
@@ -27,12 +29,16 @@ export default function LoginPage() {
   const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
 
+  useEffect(() => {
+    setNextPath(resolveSafeNextPath('/dashboard'));
+  }, []);
+
   const mutation = useMutation({
     mutationFn: () => apiClient.login({ email: email.trim().toLowerCase(), password }),
     onSuccess: (data) => {
       queryClient.clear();
       apiClient.setAccessToken(data.accessToken);
-      router.push('/dashboard');
+      router.push(resolveSafeNextPath('/dashboard'));
     },
     onError: (err) => {
       if (err instanceof NovaApiError) {
@@ -167,7 +173,7 @@ export default function LoginPage() {
           <footer className="text-[13px] text-[var(--text-secondary)] text-center pt-2 border-t border-[var(--border)]">
             New to NOVA STUDIO?{' '}
             <Link
-              href="/register"
+              href={buildAuthHref('/register', nextPath)}
               className="text-[var(--accent-2)] hover:underline font-medium"
             >
               Create an account

@@ -2,18 +2,22 @@ import type {
   AssetDto,
   AssetUrlResponse,
   AuthResponse,
+  CreateInviteDto,
   CreateProjectDto,
   CreateUploadUrlDto,
   CreateWorkspaceDto,
+  InviteResponse,
   LoginDto,
   MeResponse,
   ProjectDetailResponse,
   ProjectSummary,
   RealtimeTicketResponse,
   RegisterDto,
+  UpdateMemberRoleDto,
   UpdateProjectDto,
   UpdateWorkspaceDto,
   UploadUrlResponse,
+  WorkspaceMemberDto,
   WorkspaceSummary,
 } from '@nova/shared';
 
@@ -229,6 +233,54 @@ export class NovaApiClient {
       method: 'PATCH',
       body: JSON.stringify(dto),
     });
+  }
+
+  async listWorkspaceMembers(workspaceId: string): Promise<{ members: WorkspaceMemberDto[] }> {
+    return this.request<{ members: WorkspaceMemberDto[] }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/members`,
+      { method: 'GET' },
+    );
+  }
+
+  async updateWorkspaceMemberRole(
+    workspaceId: string,
+    userId: string,
+    dto: UpdateMemberRoleDto,
+  ): Promise<{ member: WorkspaceMemberDto }> {
+    return this.request<{ member: WorkspaceMemberDto }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(dto),
+      },
+    );
+  }
+
+  async removeWorkspaceMember(workspaceId: string, userId: string): Promise<void> {
+    return this.request<void>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`,
+      { method: 'DELETE' },
+    );
+  }
+
+  async createWorkspaceInvite(
+    workspaceId: string,
+    dto: CreateInviteDto,
+  ): Promise<InviteResponse> {
+    return this.request<InviteResponse>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/invites`,
+      {
+        method: 'POST',
+        body: JSON.stringify(dto),
+      },
+    );
+  }
+
+  async acceptInvite(token: string): Promise<{ workspace: WorkspaceSummary }> {
+    return this.request<{ workspace: WorkspaceSummary }>(
+      `/invites/${encodeURIComponent(token)}/accept`,
+      { method: 'POST' },
+    );
   }
 
   async listProjects(

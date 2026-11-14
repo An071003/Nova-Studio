@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Inject,
   Param,
   Patch,
@@ -9,9 +12,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  CreateInviteSchema,
   CreateWorkspaceSchema,
+  UpdateMemberRoleSchema,
   UpdateWorkspaceSchema,
+  type CreateInviteDto,
   type CreateWorkspaceDto,
+  type InviteResponse,
+  type UpdateMemberRoleDto,
   type UpdateWorkspaceDto,
   type WorkspaceMemberDto,
   type WorkspaceSummary,
@@ -61,5 +69,35 @@ export class WorkspacesController {
   ): Promise<{ members: WorkspaceMemberDto[] }> {
     const members = await this.workspaces.listMembers(user.id, id);
     return { members };
+  }
+
+  @Patch(':id/members/:userId')
+  async updateMemberRole(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('userId') targetUserId: string,
+    @Body(new ZodValidationPipe(UpdateMemberRoleSchema)) dto: UpdateMemberRoleDto,
+  ): Promise<{ member: WorkspaceMemberDto }> {
+    const member = await this.workspaces.updateMemberRole(user.id, id, targetUserId, dto);
+    return { member };
+  }
+
+  @Delete(':id/members/:userId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeMember(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('userId') targetUserId: string,
+  ): Promise<void> {
+    await this.workspaces.removeMember(user.id, id, targetUserId);
+  }
+
+  @Post(':id/invites')
+  async createInvite(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(CreateInviteSchema)) dto: CreateInviteDto,
+  ): Promise<InviteResponse> {
+    return this.workspaces.createInvite(user.id, id, dto);
   }
 }

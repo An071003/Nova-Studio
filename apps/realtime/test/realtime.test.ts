@@ -16,7 +16,7 @@ import { WebSocket } from 'ws';
 import * as Y from 'yjs';
 import { getRealtimeConfig } from '../src/config.js';
 import { RESTORE_CHANNEL_PREFIX } from '../src/restore.js';
-import { createRealtimeServer } from '../src/server.js';
+import { createRealtimeServer, ROLE_CHANGE_CHANNEL_PREFIX } from '../src/server.js';
 import { signRealtimeTicket } from '../src/ticket.js';
 
 const { Pool } = pg;
@@ -578,6 +578,60 @@ describe('realtime Hocuspocus server', () => {
       }
       redisPub.disconnect();
       await rt2.destroy();
+    }
+  });
+
+  it('closes target user socket cleanly on Redis role-change notification without disconnecting peers', async () => {
+    const projectId = await createProjectRow('role-change');
+    const docName = `project:${projectId}`;
+    const rt = createRealtimeServer({
+      port: 0,
+      host: '127.0.0.1',
+      debounceMs: 50,
+      maxDebounceMs: 100,
+    });
+    const { wsUrl } = await rt.listen();
+    const redisPub = new Redis(config.redisUrl);
+    const clients: ConnectedClient[] = [];
+
+    try {
+      const ownerClient = connectRealtimeClient({
+        wsUrl,
+        docName,
+        token: makeTicket(userOwnerId, projectId, 'OWNER'),
+      });
+      const editorClient = connectRealtimeClient({
+        wsUrl,
+        docName,
+        token: makeTicket(userEditorId, projectId, 'EDITOR'),
+      });
+      clients.push(ownerClient, editorClient);
+
+      await Promise.all([ownerClient.waitUntilSynced(), editorClient.waitUntilSynced()]);
+
+      await redisPub.publish(
+        `${ROLE_CHANGE_CHANNEL_PREFIX}${workspaceId}`,
+        JSON.stringify({
+          userId: userEditorId,
+          workspaceId,
+          role: 'VIEWER',
+        }),
+      );
+
+      await waitUntil(
+        () => editorClient.closeCodes.includes(4403),
+        5000,
+        'editor socket closed with 4403 on role change',
+      );
+
+      expect(ownerClient.closeCodes).toEqual([]);
+      expect(editorClient.statelessPayloads.some((p) => p.includes('role.changed'))).toBe(true);
+    } finally {
+      for (const client of clients) {
+        client.disconnect();
+      }
+      redisPub.disconnect();
+      await rt.destroy();
     }
   });
 });

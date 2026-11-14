@@ -71,3 +71,11 @@ Lesson `confidence: high` được dùng ≥ 3 lần → skill `nova-harness-evo
 - **Fix / Pattern**: Extend `tsconfig.react.json` (`moduleResolution: "Bundler"`) in `@nova/editor-konva`; in `vitest.config.ts` of `@nova/editor-konva` and `apps/web`, alias `/^konva$/` to `createRequire(import.meta.url).resolve('konva/lib/index.js')`; set `webpack.resolve.alias.canvas = false` in `apps/web/next.config.ts` and dynamically `import('@nova/editor-konva')` inside `useEffect` on client canvas mount.
 - **Evidence**: `pnpm --filter @nova/editor-konva test` 3/3 PASS (incl. 500-node `<16.6ms`/frame bench), `pnpm --filter web test` 3/3 PASS, `pnpm --filter web build` PASS, Playwright `editor.spec.ts` PASS.
 - **Confidence**: high · Uses: 2
+
+### L-011: [realtime] @hocuspocus/server `Connection.close()` sends Close message without closing the WebSocket `#realtime #hocuspocus`
+- **Date / Task**: 2026-11-14 / P1-T17
+- **Symptom**: Calling `conn.close({ code: 4403, reason: 'Role updated' })` on an active document connection removes the connection from `Document` and emits `MessageType.Close`, so `HocuspocusProviderWebsocket` never receives a TCP/WS close frame and never reconnects to fetch a refreshed ticket.
+- **Root cause**: In `@hocuspocus/server` v4.8, `Connection.close(event)` only sends `OutgoingMessage.writeCloseMessage(...)` over the multiplexed socket; terminating the peer socket requires closing `conn.webSocket`.
+- **Fix / Pattern**: Send any stateless notice (`conn.sendStateless(...)`), call `conn.close({ code, reason })` to run Hocuspocus cleanup hooks, and call `conn.webSocket.close(code, reason)` so `HocuspocusProviderWebsocket` fires `onClose` and reconnects via `token()` for a new RBAC ticket. Also avoid caching React Query modal member queries (`staleTime: 0` + `invalidateQueries` on dialog open).
+- **Evidence**: `apps/realtime/test/realtime.test.ts` role-change close test timed out at 5000ms before fix → `5 passed (5)` (`probe -Scope realtime` PASS 5/5) + Playwright `E6` (`probe -Scope e2e` PASS 5/5) after fix.
+- **Confidence**: high · Uses: 1

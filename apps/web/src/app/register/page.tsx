@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import { RegisterSchema } from '@nova/shared';
 import { Button, Card, Input, PasswordInput } from '@nova/ui';
 import { NovaLogo } from '../../components/NovaLogo';
 import { NovaApiError, apiClient } from '../../lib/api';
+import { buildAuthHref, resolveSafeNextPath } from '../../lib/safe-next';
 
 interface RegisterFieldErrors {
   name?: string;
@@ -19,6 +20,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const [nextPath, setNextPath] = useState('/dashboard');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,6 +32,10 @@ export default function RegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<RegisterFieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
 
+  useEffect(() => {
+    setNextPath(resolveSafeNextPath('/dashboard'));
+  }, []);
+
   const mutation = useMutation({
     mutationFn: () =>
       apiClient.register({
@@ -40,7 +46,7 @@ export default function RegisterPage() {
     onSuccess: (data) => {
       queryClient.clear();
       apiClient.setAccessToken(data.accessToken);
-      router.push('/dashboard');
+      router.push(resolveSafeNextPath('/dashboard'));
     },
     onError: (err) => {
       if (err instanceof NovaApiError) {
@@ -208,7 +214,7 @@ export default function RegisterPage() {
           <footer className="text-[13px] text-[var(--text-secondary)] text-center pt-2 border-t border-[var(--border)]">
             Already have an account?{' '}
             <Link
-              href="/login"
+              href={buildAuthHref('/login', nextPath)}
               className="text-[var(--accent-2)] hover:underline font-medium"
             >
               Sign in

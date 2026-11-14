@@ -12,6 +12,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Users,
   X,
 } from 'lucide-react';
 import {
@@ -24,6 +25,7 @@ import {
 } from '@nova/shared';
 import { Badge, Button, Card, Dialog, Input, Select, useToast } from '@nova/ui';
 import { NovaLogo } from '../../components/NovaLogo';
+import { WorkspaceMembersDialog } from '../../components/WorkspaceMembersDialog';
 import { NovaApiError, apiClient } from '../../lib/api';
 
 type DesignPreset = '1920x1080' | '1080x1080' | '1080x1920' | 'custom';
@@ -67,6 +69,15 @@ export default function DashboardPage() {
   const [renameProjectError, setRenameProjectError] = useState<string | undefined>(undefined);
 
   const [deleteTarget, setDeleteTarget] = useState<ProjectSummary | null>(null);
+  const [membersOpen, setMembersOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const wsId = new URLSearchParams(window.location.search).get('workspaceId');
+    if (wsId) {
+      setSelectedWorkspaceId(wsId);
+    }
+  }, []);
 
   const meQuery = useQuery({
     queryKey: ['me'],
@@ -440,6 +451,15 @@ export default function DashboardPage() {
                       <span>New design</span>
                     </Button>
                   ) : null}
+
+                  <Button
+                    variant="secondary"
+                    data-testid="manage-members-btn"
+                    onClick={() => setMembersOpen(true)}
+                  >
+                    <Users className="w-4 h-4" aria-hidden="true" />
+                    <span>Members</span>
+                  </Button>
                 </div>
               </div>
 
@@ -750,6 +770,15 @@ export default function DashboardPage() {
           </Button>
         </div>
       </Dialog>
+
+      {activeWorkspace ? (
+        <WorkspaceMembersDialog
+          open={membersOpen}
+          onClose={() => setMembersOpen(false)}
+          workspace={activeWorkspace}
+          currentUserId={user?.id}
+        />
+      ) : null}
     </div>
   );
 }

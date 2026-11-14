@@ -49,6 +49,21 @@ export class PostgresDocumentStore {
     );
   }
 
+  /** Returns the subset of `projectIds` that belong to `workspaceId` and are not deleted. */
+  async filterProjectIdsInWorkspace(
+    projectIds: string[],
+    workspaceId: string,
+  ): Promise<Set<string>> {
+    if (projectIds.length === 0) {
+      return new Set<string>();
+    }
+    const result = await this.pool.query<{ id: string }>(
+      `SELECT "id" FROM "Project" WHERE "id" = ANY($1::text[]) AND "workspaceId" = $2 AND "deletedAt" IS NULL`,
+      [projectIds, workspaceId],
+    );
+    return new Set(result.rows.map((r) => r.id));
+  }
+
   /** Verifies database connectivity (`SELECT 1`). */
   async ping(): Promise<boolean> {
     await this.pool.query('SELECT 1');

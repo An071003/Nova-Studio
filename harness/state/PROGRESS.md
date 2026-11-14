@@ -7,10 +7,11 @@
 - M2 — Production: IN_PROGRESS
 
 ## Current task
-- ID: M1-GATE · Status: DONE · Completed: 2026-11-14
-- Goal: Verify Milestone 1 (Evals E1–E5 + full monorepo lint, typecheck, headless guard, and test suite).
-- Evidence: `pwsh -NoProfile -File harness/probes/probe.ps1 -Scope gate-m1` PASS (`6/6` steps: lint, typecheck, guards, `test (all)` 13/13 tasks, Playwright `E1–E5` `5 passed (46.3s)`).
-- Next: Start M2 (`P1-T17`: Workspace Members & Invites API + UI, `LAST_OWNER`, AuditLog, Eval E6).
+- ID: P1-T18 · Status: IN_PROGRESS · Started: 2026-11-14
+- Goal: Implement project-level role overrides (`GET/PUT/DELETE /projects/:id/members/:userId`, Share/Permissions modal in Editor & Dashboard, live realtime downgrade on project override, and strict Viewer read-only UI/server enforcement) + Eval E7.
+- Files touched: `packages/shared/src/api/project.ts`, `apps/api/src/projects/{projects.controller.ts,projects.service.ts}`, `apps/api/test/workspaces-projects.e2e-spec.ts`, `apps/web/src/{lib/api.ts,components/editor/**,app/project/[id]/page.tsx,app/dashboard/page.tsx}`, `apps/web/e2e/evals/rbac.eval.spec.ts`.
+- Risks: Ensuring project override `PUT` (`null` removal vs role override) properly resolves `resolveEffectiveRole`, triggers Redis `nova:role-change:<workspaceId>` with `projectId`, and keeps `VIEWER` server-enforced even on raw Yjs doc mutation attempts.
+- Probe plan: `pwsh harness/probes/probe.ps1 -Scope api`, `probe.ps1 -Scope realtime`, and `probe.ps1 -Scope e2e` (`E1–E7`).
 
 ## Blockers
 _(không có)_
@@ -35,8 +36,8 @@ _(không có)_
 | P1-T15 | DONE | 2026-11-14 | `shared` `11/11`; `worker` `4/4`; `probe -Scope api` PASS 6/6 (`assets.e2e-spec.ts`); `probe -Scope e2e` PASS 5/5 (`E1–E5` `5 passed (48.4s)` + `E5.png`) |
 | P1-T16 | DONE | 2026-11-14 | `web build` PASS (`7/7`); `probe -Scope web` PASS 6/6 (`4 passed (51.7s)` incl. P1-T16 drag-drop reorder, rename/hide/lock, full properties, align/distribute, group, clipboard & shortcuts) |
 | M1-GATE | DONE | 2026-11-14 | `probe -Scope gate-m1` PASS 6/6 (`test (all)` 13/13 tasks + Playwright `E1–E5` `5 passed (46.3s)`) |
-| P1-T17 | TODO | | |
-| P1-T18 | TODO | | |
+| P1-T17 | DONE | 2026-11-14 | `probe -Scope realtime` PASS 5/5 (`5/5` tests); `probe -Scope api` PASS 6/6 (`9/9` unit, `10/10` e2e); `probe -Scope e2e` PASS 5/5 (`E1–E6` `6 passed (42.1s)` + `E6.png`) |
+| P1-T18 | IN_PROGRESS | 2026-11-14 | |
 | P1-T19 | TODO | | |
 | P1-T20 | TODO | | |
 | P1-T21 | TODO | | |
@@ -51,6 +52,7 @@ Status hợp lệ: `TODO | IN_PROGRESS | BLOCKED | REVIEW | DONE`.
 ## Log
 | Date | Task | Note (CONTRAST rounds, follow-ups) |
 |---|---|---|
+| 2026-11-14 | P1-T17 | 2 CONTRAST rounds: (1) `@hocuspocus/server` `Connection.close()` only sends multiplexed protocol Close without closing WebSocket — added `conn.webSocket.close(4403, ...)` so client reconnects with fresh ticket (`L-011`); (2) invalidated `['workspace-members']` query on dialog open (`staleTime: 0`) so newly joined invitees appear immediately. |
 | 2026-11-14 | P1-T01 | 1 CONTRAST round: added top-level `main`/`types` for CJS consumers & 20s timeout for cold ESLint boundary test. |
 | 2026-11-14 | P1-T02 | 2 CONTRAST rounds: switched MinIO to `pgsty/silo:latest` + inline SigV4 bucket init & healthcheck (public Docker Hub `minio/minio` removed & `--wait` fails on exiting one-shot containers). |
 | 2026-11-14 | P1-T03 | 0 CONTRAST rounds: 100% coverage on `permissions.ts` and all Zod schemas. |

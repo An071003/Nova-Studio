@@ -1,9 +1,10 @@
 import { Database } from '@hocuspocus/extension-database';
 import { Server, type Hocuspocus } from '@hocuspocus/server';
 import { initializeDocIfEmpty } from '@nova/editor-core';
-import { MAX_REALTIME_MESSAGE_BYTES } from '@nova/shared';
+import { MAX_REALTIME_MESSAGE_BYTES, RoleSchema, type Role } from '@nova/shared';
 import { Redis } from 'ioredis';
 import * as Y from 'yjs';
+import { z } from 'zod';
 import { getRealtimeConfig, type RealtimeConfig } from './config.js';
 import { PostgresDocumentStore } from './database.js';
 import { logger } from './logger.js';
@@ -17,6 +18,17 @@ import {
   verifyRealtimeTicket,
   type RealtimeConnectionContext,
 } from './ticket.js';
+
+export const ROLE_CHANGE_CHANNEL_PREFIX = 'nova:role-change:';
+
+const RoleChangeMessageSchema = z.object({
+  userId: z.string().min(1),
+  workspaceId: z.string().min(1).optional(),
+  projectId: z.string().min(1).optional(),
+  role: RoleSchema.nullable().optional(),
+});
+
+export type RoleChangePayload = z.infer<typeof RoleChangeMessageSchema>;
 
 export interface RealtimeServerOptions extends Partial<RealtimeConfig> {
   unloadImmediately?: boolean;
@@ -151,6 +163,67 @@ export function createRealtimeServer(
     }
   };
 
+  const applyRoleChange = async (payload: {
+    userId: string;
+    workspaceId?: string;
+    projectId?: string;
+    role?: Role | null;
+  }): Promise<number> => {
+    const activeEntries = Array.from(server.hocuspocus.documents.entries());
+    if (activeEntries.length === 0) {
+      return 0;
+    }
+
+    let allowedProjectIds: Set<string> | null = null;
+    if (payload.projectId) {
+      allowedProjectIds = new Set([payload.projectId]);
+    } else if (payload.workspaceId) {
+      const candidateProjectIds = activeEntries.map(([docName]) =>
+        extractProjectIdFromDocName(docName),
+      );
+      allowedProjectIds = await store.filterProjectIdsInWorkspace(
+        candidateProjectIds,
+        payload.workspaceId,
+      );
+    }
+
+    const statelessMessage = JSON.stringify({
+      type: 'role.changed',
+      userId: payload.userId,
+      workspaceId: payload.workspaceId ?? null,
+      projectId: payload.projectId ?? null,
+      role: payload.role ?? null,
+    });
+
+    let closedCount = 0;
+    for (const [docName, liveDoc] of activeEntries) {
+      const docProjectId = extractProjectIdFromDocName(docName);
+      if (allowedProjectIds && !allowedProjectIds.has(docProjectId)) {
+        continue;
+      }
+
+      for (const conn of liveDoc.getConnections()) {
+        const ctx = (conn as { context?: Partial<RealtimeConnectionContext> }).context;
+        if (ctx?.userId === payload.userId) {
+          try {
+            conn.sendStateless(statelessMessage);
+          } catch {
+            // ignore send failures when closing socket
+          }
+          conn.close({ code: 4403, reason: 'Role updated' });
+          try {
+            conn.webSocket.close(4403, 'Role updated');
+          } catch {
+            // ignore socket close failures if already closing
+          }
+          closedCount += 1;
+        }
+      }
+    }
+
+    return closedCount;
+  };
+
   const listen = async (): Promise<{ port: number; wsUrl: string; httpUrl: string }> => {
     if (enableRedis && !redisSub) {
       const sub = new Redis(config.redisUrl, {
@@ -158,25 +231,51 @@ export function createRealtimeServer(
         maxRetriesPerRequest: null,
       });
       sub.on('error', (err) => {
-        logger.error({ err }, 'Redis restore subscriber error');
+        logger.error({ err }, 'Redis pub/sub subscriber error');
       });
       sub.on('pmessage', (_pattern, channel, message) => {
-        if (!channel.startsWith(RESTORE_CHANNEL_PREFIX)) {
+        if (channel.startsWith(RESTORE_CHANNEL_PREFIX)) {
+          const projectId = channel.slice(RESTORE_CHANNEL_PREFIX.length);
+          void (async () => {
+            try {
+              const bytes = decodeRestoreMessage(message);
+              await applyRestore(projectId, bytes);
+              logger.info({ projectId }, 'Applied version restore from Redis pub/sub');
+            } catch (err) {
+              logger.error({ err, projectId }, 'Failed to apply version restore');
+            }
+          })();
           return;
         }
-        const projectId = channel.slice(RESTORE_CHANNEL_PREFIX.length);
-        void (async () => {
-          try {
-            const bytes = decodeRestoreMessage(message);
-            await applyRestore(projectId, bytes);
-            logger.info({ projectId }, 'Applied version restore from Redis pub/sub');
-          } catch (err) {
-            logger.error({ err, projectId }, 'Failed to apply version restore');
-          }
-        })();
+
+        if (channel.startsWith(ROLE_CHANGE_CHANNEL_PREFIX)) {
+          const channelWorkspaceId = channel.slice(ROLE_CHANGE_CHANNEL_PREFIX.length);
+          void (async () => {
+            try {
+              const parsed = RoleChangeMessageSchema.parse(JSON.parse(message));
+              const closedCount = await applyRoleChange({
+                userId: parsed.userId,
+                workspaceId: parsed.workspaceId ?? channelWorkspaceId,
+                projectId: parsed.projectId,
+                role: parsed.role,
+              });
+              logger.info(
+                {
+                  userId: parsed.userId,
+                  workspaceId: parsed.workspaceId ?? channelWorkspaceId,
+                  projectId: parsed.projectId,
+                  closedCount,
+                },
+                'Processed role change notification from Redis pub/sub',
+              );
+            } catch (err) {
+              logger.error({ err, channel }, 'Failed to process role change message');
+            }
+          })();
+        }
       });
       await sub.connect();
-      await sub.psubscribe(`${RESTORE_CHANNEL_PREFIX}*`);
+      await sub.psubscribe(`${RESTORE_CHANNEL_PREFIX}*`, `${ROLE_CHANGE_CHANNEL_PREFIX}*`);
       redisSub = sub;
     }
 

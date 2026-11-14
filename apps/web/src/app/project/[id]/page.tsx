@@ -16,6 +16,7 @@ import {
   type AssetDto,
   type CanvasNode,
   type Point,
+  type Role,
   type ToolId,
   type ViewportState,
 } from '@nova/shared';
@@ -91,8 +92,10 @@ export default function ProjectEditorPage({
   const user = meQuery.data?.user;
   const project = projectQuery.data?.project;
   const role = projectQuery.data?.role ?? 'VIEWER';
-  const readOnly = !can(role, 'canvas.edit');
-  const canRenameProject = can(role, 'project.update');
+  const [realtimeReadOnly, setRealtimeReadOnly] = useState<boolean | null>(null);
+  const effectiveRole: Role = realtimeReadOnly === true && role !== 'VIEWER' ? 'VIEWER' : role;
+  const readOnly = realtimeReadOnly ?? !can(effectiveRole, 'canvas.edit');
+  const canRenameProject = !readOnly && can(effectiveRole, 'project.update');
 
   const doc = useMemo(() => new Y.Doc(), [projectId]);
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -152,6 +155,10 @@ export default function ProjectEditorPage({
   const initialReadOnlyRef = useRef(readOnly);
   initialReadOnlyRef.current = readOnly;
 
+  useEffect(() => {
+    setRealtimeReadOnly(null);
+  }, [projectId]);
+
   // Initialize Realtime session + IndexedDB + Editor once authenticated user & project load
   useEffect(() => {
     if (!userId || !loadedProjectId) return;
@@ -160,6 +167,7 @@ export default function ProjectEditorPage({
     let instance: Editor | null = null;
     let session: RealtimeSession | null = null;
     let fallbackIdb: IndexeddbPersistence | null = null;
+    let lastScope: 'read-write' | 'readonly' | null = null;
     const unsubs: Array<() => void> = [];
 
     const setup = async () => {
@@ -173,18 +181,36 @@ export default function ProjectEditorPage({
             }
           },
           onScopeChange: (scope) => {
-            if (!cancelled && scope === 'readonly') {
-              instance?.setReadOnly(true);
+            if (cancelled) return;
+            const nextReadOnly = scope === 'readonly';
+            setRealtimeReadOnly(nextReadOnly);
+            instance?.setReadOnly(nextReadOnly);
+            if ((lastScope !== null && lastScope !== scope) || scope === 'readonly') {
+              void queryClient.invalidateQueries({ queryKey: ['project', loadedProjectId] });
             }
+            lastScope = scope;
           },
           onStatelessMessage: (payload) => {
             if (cancelled) return;
             try {
-              const parsed = JSON.parse(payload) as { type?: string };
+              const parsed = JSON.parse(payload) as { type?: string; role?: Role | null };
               if (parsed.type === 'version.restored') {
                 pushToastRef.current({
                   title: 'Project restored to another version',
                   tone: 'info',
+                });
+              } else if (parsed.type === 'role.changed') {
+                if (parsed.role === 'VIEWER' || parsed.role === null) {
+                  setRealtimeReadOnly(true);
+                  instance?.setReadOnly(true);
+                }
+                void queryClient.invalidateQueries({ queryKey: ['project', loadedProjectId] });
+                pushToastRef.current({
+                  title:
+                    parsed.role === null
+                      ? 'Workspace access removed'
+                      : `Your role changed to ${parsed.role ?? 'updated permissions'}`,
+                  tone: parsed.role === 'VIEWER' || parsed.role === null ? 'warning' : 'info',
                 });
               }
             } catch {
@@ -304,7 +330,7 @@ export default function ProjectEditorPage({
       void session?.destroy();
       void fallbackIdb?.destroy().catch(() => {});
     };
-  }, [doc, userId, userName, avatarUrl, loadedProjectId]);
+  }, [doc, userId, userName, avatarUrl, loadedProjectId, queryClient]);
 
   useEffect(() => {
     if (editor) {
@@ -568,7 +594,7 @@ export default function ProjectEditorPage({
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)]">
       <TopBar
         projectName={project.name}
-        role={role}
+        role={effectiveRole}
         readOnly={readOnly}
         canRenameProject={canRenameProject}
         activeTool={activeTool}
