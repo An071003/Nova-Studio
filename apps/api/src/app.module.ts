@@ -3,11 +3,15 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { HealthController } from './health/health.controller';
+import { PermissionsModule } from './permissions/permission.service';
 import { PrismaModule } from './prisma/prisma.service';
+import { ProjectsModule } from './projects/projects.module';
+import { WorkspacesModule } from './workspaces/workspaces.module';
 
 @Module({
   imports: [
     PrismaModule,
+    PermissionsModule,
     ThrottlerModule.forRoot([
       {
         name: 'default',
@@ -16,6 +20,8 @@ import { PrismaModule } from './prisma/prisma.service';
       },
     ]),
     AuthModule,
+    WorkspacesModule,
+    ProjectsModule,
   ],
   controllers: [HealthController],
   providers: [
