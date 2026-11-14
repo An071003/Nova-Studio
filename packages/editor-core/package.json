@@ -3,29 +3,33 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "main": "./dist/cjs/index.js",
+  "main": "./dist/esm/index.js",
   "module": "./dist/esm/index.js",
-  "types": "./dist/cjs/index.d.ts",
+  "types": "./dist/esm/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js",
       "default": "./dist/esm/index.js"
     }
   },
   "scripts": {
-    "build": "node ../config/scripts/dual-build.mjs",
-    "lint": "eslint src",
+    "build": "tsc -p tsconfig.esm.json",
+    "lint": "eslint src test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "bench": "vitest bench"
   },
   "dependencies": {
     "@nova/shared": "workspace:*",
+    "fractional-indexing": "^4.0.0",
+    "nanoid": "^6.0.2",
+    "rbush": "^4.0.1",
+    "y-protocols": "^1.0.7",
     "yjs": "^13.6.24"
   },
   "devDependencies": {
+    "@types/rbush": "^4.0.0",
     "eslint": "^9.39.1",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"

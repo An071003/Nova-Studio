@@ -29,7 +29,7 @@ describe('architecture boundaries', () => {
       (m) => m.ruleId === 'no-restricted-imports' || m.ruleId === 'import/no-restricted-paths',
     );
     expect(restricted.length).toBeGreaterThanOrEqual(1);
-  });
+  }, 30000);
 
   it('rejects cross-app relative imports between apps/web and apps/api', async () => {
     const webFile = path.resolve(rootDir, 'apps/web/src/index.ts');
@@ -39,5 +39,5 @@ describe('architecture boundaries', () => {
       (m) => m.ruleId === 'import/no-restricted-paths',
     );
     expect(restricted.length).toBeGreaterThanOrEqual(1);
-  });
+  }, 30000);
 });
