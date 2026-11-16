@@ -173,6 +173,14 @@ Sau khi chạy lệnh seed dữ liệu (`pnpm db:seed`), hệ thống có sẵn 
    - *Khắc phục:* Chạy lại `pnpm db:seed` (đối với dev) hoặc lệnh seed exec của compose (đối với prod).
 4. **Lỗi thiếu module khi chạy dev**:
    - *Khắc phục:* Chạy `pnpm install && pnpm build` từ thư mục gốc để đảm bảo các package nội bộ (`@nova/shared`, `@nova/editor-core`, `@nova/editor-konva`, `@nova/ui`) được compile đầy đủ.
+5. **Lỗi `container infra-api-1 is unhealthy` / `P1000: Authentication failed against database server`**:
+   - *Nguyên nhân:* Volume dữ liệu của PostgreSQL (`nova_prod_pgdata`) trước đó từng được tạo với một mật khẩu khác so với biến môi trường `DATABASE_URL` hiện tại.
+   - *Khắc phục:* Reset sạch volume dữ liệu cũ và khởi động lại bằng lệnh:
+     ```bash
+     docker compose -f infra/docker-compose.prod.yml down -v
+     docker compose -f infra/docker-compose.prod.yml up -d --build --wait
+     docker compose -f infra/docker-compose.prod.yml exec -T api node --experimental-strip-types apps/api/prisma/seed.ts
+     ```
 
 ---
 
